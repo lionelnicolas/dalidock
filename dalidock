@@ -162,10 +162,11 @@ class DockerEventsHandler(object):
         ipaddress    = self.docker.getIPAddress(data)
         network      = self.docker.getNetworkName(data)
         domain       = self.docker.getLabel(data, 'dns.domain',   DNS_DOMAIN)
+        aliases      = self.docker.getLabel(data, 'dns.aliases',  '')
 
         log("name=%-10s hostname=%-10s ip=%-15s net=%-10s domain=%-10s" % (name, hostname, ipaddress, network, domain))
 
-        if   status == 'start': self.dns.add(cid, hostname, ipaddress, network, domain, name)
+        if   status == 'start': self.dns.add(cid, hostname, ipaddress, network, domain, name, aliases)
         elif status == 'die':   self.dns.remove(cid)
 
         self.dns.write()
@@ -175,14 +176,22 @@ class DnsEntries(object):
     def __init__(self):
         self.entries = dict()
 
-    def add(self, cid, hostname, ipaddress, network, domain, name):
+    def add(self, cid, hostname, ipaddress, network, domain, name, aliases):
         entry = {
             'hostname':  hostname,
             'ipaddress': ipaddress,
             'network':   network,
             'domain':    domain,
             'name':      name,
+            'aliases':   [name],
         }
+
+        for alias in aliases.split(','):
+            if not alias:
+                # empty string
+                continue
+
+            entry['aliases'].append(alias)
 
         self.entries[cid] = entry
 
@@ -200,6 +209,10 @@ class DnsEntries(object):
         for entry in self.entries:
             data       = self.entries[entry]
             etc_hosts += "%-15s %s.%s %s %s.%s %s" % (data['ipaddress'], data['hostname'], data['domain'], data['hostname'], data['name'], data['domain'], data['name'])
+
+            for alias in data['aliases']:
+                etc_hosts += " %s.%s %s" % (alias, data['domain'], alias)
+
             etc_hosts += "\n"
 
         return etc_hosts
