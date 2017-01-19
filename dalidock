@@ -208,11 +208,40 @@ class DnsEntries(object):
 
         for entry in self.entries:
             data       = self.entries[entry]
-            etc_hosts += "%-15s %s.%s %s %s.%s %s" % (data['ipaddress'], data['hostname'], data['domain'], data['hostname'], data['name'], data['domain'], data['name'])
+            etc_hosts += "%-15s" % (data['ipaddress'])
+            hosts      = list()
 
+            # put FQDN on top to make dnsmasq properly handle reverse DNS
+            hosts.append("%s.%s" % (data['hostname'], data['domain']))
+
+            # loop on host names
+            for host in [
+                    "%s"    % (data['hostname']),
+                    "%s.%s" % (data['name'], data['domain']),
+                    "%s"    % (data['name']),
+                    ]:
+                if host not in hosts:
+                    hosts.append(host)
+
+            # loop on aliases
             for alias in data['aliases']:
-                etc_hosts += " %s.%s %s" % (alias, data['domain'], alias)
+                # strip starting dots or wildcards
+                for prefix in [ '*.', '.', '*' ]:
+                    alias = alias[alias.startswith(prefix) and len(prefix):]
 
+                # avoid duplication of domain name, like 'alias.domain.domain'
+                if alias.endswith(data['domain']):
+                    alias = alias[:-len(data['domain'])-1]
+
+                if alias not in hosts:
+                    hosts.append("%s"    % (alias))
+                    hosts.append("%s.%s" % (alias, data['domain']))
+
+            # append generated line
+            for host in hosts:
+                etc_hosts += " %s" % (host)
+
+            # end of host defintion
             etc_hosts += "\n"
 
         return etc_hosts
