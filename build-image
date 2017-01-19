@@ -40,6 +40,11 @@ apt-get install -y --no-install-recommends \
 	runit \
 	wget
 
+# Install python dependencies
+apt-get install -y --no-install-recommends \
+	python3.5-minimal \
+	python3-docker
+
 # Install tini (a tiny but valid init for containers)
 TINI_VERSION=v0.13.2
 http_proxy= gpg --keyserver ha.pool.sks-keyservers.net --recv-keys 0527A9B7

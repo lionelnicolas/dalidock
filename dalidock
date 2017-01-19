@@ -1,0 +1,222 @@
+#!/usr/bin/python3 -u
+# -*- coding: utf-8 -*-
+
+import docker
+import json
+import os
+import sys
+import signal
+
+# docker default values
+DOCKER_SOCKET = os.getenv('DOCKER_SOCKET', 'unix://var/run/docker.sock')
+DOCKER_IP     = os.getenv('DOCKER_IP', '172.17.0.1')
+
+# DNS default values
+DNS_DOMAIN   = os.getenv('DNS_DOMAIN',   'local')
+
+# dnsmasq default values
+DNSMASQ_PID_FILE   = os.getenv('DNSMASQ_PID_FILE',   '/run/dnsmasq/dnsmasq.pid')
+DNSMASQ_HOSTS_FILE = os.getenv('DNSMASQ_HOSTS_FILE', '/run/dnsmasq/hosts/docker')
+
+def log(msg, level="INFO", hostname=False):
+    if hostname:
+        print("%-7s %-28s %s" % ("[%s]" % level, "[%s]" % hostname, msg))
+    else:
+        print("%-7s %s" % ("[%s]" % level, msg))
+
+def error(msg, hostname=False):
+    log(msg, level="ERROR", hostname=hostname)
+
+def fatal(msg, hostname=False):
+    log(msg, "FATAL", hostname=hostname)
+    sys.exit(1)
+
+def sighandler(sig, frame):
+    print ("")
+    sys.exit(0)
+
+class DockerClient(object):
+    def __init__(self, url='unix://var/run/docker.sock'):
+        self.url  = url
+        self.conn = docker.Client(base_url=self.url)
+
+        self.showInformations()
+
+    def showInformations(self):
+        docker_infos   = self.conn.info()
+        docker_version = self.conn.version()
+
+        log("Kernel:           %s"   % (docker_infos['KernelVersion']))
+        log("Operating System: %s"   % (docker_infos['OperatingSystem']))
+        log("Docker Version:   %s"   % (docker_version['Version']))
+        log("API Version:      %s\n" % (docker_version['ApiVersion']))
+
+    def getContainerData(self, containerid):
+        try:
+            return self.conn.inspect_container(containerid)
+        except docker.errors.NotFound:
+            error("Container '%s' does not exists" % (containerid))
+            return False
+        except docker.errors.APIError as e:
+            error("API error while getting information: %s" % (str(e)))
+            return False
+
+    def getId(self, data):
+        # return container id
+        return data['Id']
+
+    def getName(self, data):
+        # return container name
+        return data['Name'].replace('/', '')
+
+    def getHostname(self, data):
+        # return container hostname
+        return data['Config']['Hostname']
+
+    def getIPAddress(self, data):
+        # return container main IP address
+
+        for net in data['NetworkSettings']['Networks']:
+            if net == 'host':
+                return DOCKER_IP
+            else:
+                return data['NetworkSettings']['Networks'][net]['IPAddress']
+
+    def getNetworkName(self, data):
+        # return first network name
+
+        for net in data['NetworkSettings']['Networks']:
+            return net
+
+        return False
+
+    def getLabels(self, data):
+        # return container's labels
+        return data['Config']['Labels']
+
+    def getLabel(self, data, name, default=False):
+        # return container's label 'name'
+
+        labels = self.getLabels(data)
+
+        if name not in labels:
+            return default
+
+        return labels[name]
+
+class DockerEventsHandler(object):
+    def __init__(self):
+        self.docker = DockerClient(DOCKER_SOCKET)
+        self.dns    = DnsEntries()
+        self.loop   = True
+
+    def serve(self):
+        log("Starting docker events handler")
+
+        # get all running containers, then fix/update their network configuration if needed
+        self.loadAllContainers()
+
+        # listenning events
+        events_generator = self.docker.conn.events(decode=False)
+
+        while self.loop:
+            evts = next(events_generator)
+
+            for evt in evts.decode('utf8').split('\n'):
+                if not evt:
+                    # We've got an empty string
+                    continue
+
+                self.processEvt(evt)
+
+    def loadAllContainers(self):
+        for container in self.docker.conn.containers():
+            self.handleContainer(container['Id'], 'start')
+
+    def processEvt(self, evt):
+        evt = json.loads(evt)
+
+        if 'Type' not in evt.keys() or evt['Type'] != 'container':
+            # this event is useless because not related to container state, skipping (fix for docker 1.10+)
+            return
+
+        containerid = evt['id']
+        status      = evt['status']
+
+        if status not in ['start', 'die']:
+            # These events can be dropped as we are not handling them
+            return
+
+        self.handleContainer(containerid, status)
+
+    def handleContainer(self, containerid, status):
+        data = self.docker.getContainerData(containerid)
+
+        if not data:
+            error("Fail to fetch description of container '%s'" % (containerid))
+            return
+
+        cid          = self.docker.getId(data)
+        name         = self.docker.getName(data)
+        hostname     = self.docker.getHostname(data)
+        ipaddress    = self.docker.getIPAddress(data)
+        network      = self.docker.getNetworkName(data)
+        domain       = self.docker.getLabel(data, 'dns.domain',   DNS_DOMAIN)
+
+        log("name=%-10s hostname=%-10s ip=%-15s net=%-10s domain=%-10s" % (name, hostname, ipaddress, network, domain))
+
+        if   status == 'start': self.dns.add(cid, hostname, ipaddress, network, domain, name)
+        elif status == 'die':   self.dns.remove(cid)
+
+        self.dns.write()
+        self.dns.reload()
+
+class DnsEntries(object):
+    def __init__(self):
+        self.entries = dict()
+
+    def add(self, cid, hostname, ipaddress, network, domain, name):
+        entry = {
+            'hostname':  hostname,
+            'ipaddress': ipaddress,
+            'network':   network,
+            'domain':    domain,
+            'name':      name,
+        }
+
+        self.entries[cid] = entry
+
+    def remove(self, cid):
+        if cid in self.entries:
+            del self.entries[cid]
+
+    def show(self):
+        for entry in self.entries:
+            print (self.entries[entry])
+
+    def generate(self):
+        etc_hosts  = ""
+
+        for entry in self.entries:
+            data       = self.entries[entry]
+            etc_hosts += "%-15s %s.%s %s %s.%s %s" % (data['ipaddress'], data['hostname'], data['domain'], data['hostname'], data['name'], data['domain'], data['name'])
+            etc_hosts += "\n"
+
+        return etc_hosts
+
+    def write(self):
+        with open(DNSMASQ_HOSTS_FILE, 'w') as fd:
+            fd.write(self.generate())
+
+    def reload(self):
+        os.system("kill -HUP $(cat %s)" % (DNSMASQ_PID_FILE))
+
+signal.signal(signal.SIGINT,  sighandler)
+signal.signal(signal.SIGTERM, sighandler)
+
+def main():
+    evt_handler = DockerEventsHandler()
+    evt_handler.serve()
+
+if __name__ == '__main__':
+    main()
