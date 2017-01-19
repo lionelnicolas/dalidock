@@ -19,11 +19,14 @@ DNS_WILDCARD = os.getenv('DNS_WILDCARD', 'false')
 DNSMASQ_WILDCARDS_FILE = os.getenv('DNSMASQ_WILDCARDS_FILE', '/run/dnsmasq/conf/docker')
 DNSMASQ_HOSTS_FILE     = os.getenv('DNSMASQ_HOSTS_FILE',     '/run/dnsmasq/hosts/docker')
 
+def get_process_info():
+    return "%s[%d]" % (os.path.basename(sys.argv[0]), os.getpid())
+
 def log(msg, level="INFO", hostname=False):
     if hostname:
-        print("%-7s %-28s %s" % ("[%s]" % level, "[%s]" % hostname, msg))
+        print("%s: %-7s %-28s %s" % (get_process_info(), "[%s]" % level, "[%s]" % hostname, msg))
     else:
-        print("%-7s %s" % ("[%s]" % level, msg))
+        print("%s: %-7s %s" % (get_process_info(), "[%s]" % level, msg))
 
 def error(msg, hostname=False):
     log(msg, level="ERROR", hostname=hostname)
