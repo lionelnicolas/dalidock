@@ -13,6 +13,9 @@ echo -n >/etc/dnsmasq.conf
 # create data directory
 mkdir -p ${DNSMASQ_DATADIR}
 
+# create hosts directory
+mkdir -p ${DNSMASQ_DATADIR}/hosts
+
 # generate resolv.conf file
 # if NetworkManager is mapped, use its nameservers, or use the docker ones instead
 
