@@ -13,6 +13,17 @@ echo -n >/etc/dnsmasq.conf
 # create data directory
 mkdir -p ${DNSMASQ_DATADIR}
 
+# generate resolv.conf file
+# if NetworkManager is mapped, use its nameservers, or use the docker ones instead
+
+resolvconf_file=${DNSMASQ_DATADIR}/resolv.conf.generated
+
+if [ -f /run/NetworkManager/resolv.conf ]; then
+	grep "^nameserver\|^search" /run/NetworkManager/resolv.conf >${resolvconf_file}
+else
+	grep "^nameserver\|^search" /etc/resolv.conf >${resolvconf_file}
+fi
+
 exec dnsmasq \
 	--keep-in-foreground \
 	--conf-dir=${DNSMASQ_CONFDIR} \
