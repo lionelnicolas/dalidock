@@ -13,9 +13,11 @@ DOCKER_IP     = os.getenv('DOCKER_IP', '172.17.0.1')
 
 # DNS default values
 DNS_DOMAIN   = os.getenv('DNS_DOMAIN',   'local')
+DNS_WILDCARD = os.getenv('DNS_WILDCARD', 'false')
 
 # dnsmasq default values
-DNSMASQ_HOSTS_FILE = os.getenv('DNSMASQ_HOSTS_FILE', '/run/dnsmasq/hosts/docker')
+DNSMASQ_WILDCARDS_FILE = os.getenv('DNSMASQ_WILDCARDS_FILE', '/run/dnsmasq/conf/docker')
+DNSMASQ_HOSTS_FILE     = os.getenv('DNSMASQ_HOSTS_FILE',     '/run/dnsmasq/hosts/docker')
 
 def log(msg, level="INFO", hostname=False):
     if hostname:
@@ -161,12 +163,20 @@ class DockerEventsHandler(object):
         ipaddress    = self.docker.getIPAddress(data)
         network      = self.docker.getNetworkName(data)
         domain       = self.docker.getLabel(data, 'dns.domain',   DNS_DOMAIN)
+        use_wildcard = self.docker.getLabel(data, 'dns.wildcard', DNS_WILDCARD).lower()
         aliases      = self.docker.getLabel(data, 'dns.aliases',  '')
 
-        log("name=%-10s hostname=%-10s ip=%-15s net=%-10s domain=%-10s" % (name, hostname, ipaddress, network, domain))
+        if use_wildcard in [ '1', 'true', 'yes' ]:
+            use_wildcard=True
+        else:
+            use_wildcard=False
 
-        if   status == 'start': self.dns.add(cid, hostname, ipaddress, network, domain, name, aliases)
-        elif status == 'die':   self.dns.remove(cid)
+        log("name=%-10s hostname=%-10s ip=%-15s net=%-10s domain=%-10s use_wildcard=%s" % (name, hostname, ipaddress, network, domain, use_wildcard))
+
+        if   status == 'start':
+            self.dns.add(cid, hostname, ipaddress, network, domain, name, aliases, use_wildcard)
+        elif status == 'die':
+            self.dns.remove(cid)
 
         self.dns.update()
 
@@ -174,15 +184,17 @@ class DnsEntries(object):
     def __init__(self):
         self.entries          = dict()
         self.cached_etc_hosts = ""
+        self.cached_wildcards = ""
 
-    def add(self, cid, hostname, ipaddress, network, domain, name, aliases):
+    def add(self, cid, hostname, ipaddress, network, domain, name, aliases, use_wildcard):
         entry = {
-            'hostname':  hostname,
-            'ipaddress': ipaddress,
-            'network':   network,
-            'domain':    domain,
-            'name':      name,
-            'aliases':   [name],
+            'hostname':     hostname,
+            'ipaddress':    ipaddress,
+            'network':      network,
+            'domain':       domain,
+            'name':         name,
+            'aliases':      [name],
+            'use_wildcard': use_wildcard,
         }
 
         for alias in aliases.split(','):
@@ -203,7 +215,8 @@ class DnsEntries(object):
             print (self.entries[entry])
 
     def generate(self):
-        etc_hosts  = ""
+        etc_hosts = ""
+        wildcards = ""
 
         for entry in self.entries:
             data       = self.entries[entry]
@@ -240,13 +253,18 @@ class DnsEntries(object):
             for host in hosts:
                 etc_hosts += " %s" % (host)
 
+            # add wildcard configuration if needed
+            if data['use_wildcard']:
+                for host in hosts:
+                    wildcards += "address=/%s/%s\n" % (host, data['ipaddress'])
+
             # end of host defintion
             etc_hosts += "\n"
 
-        return etc_hosts
+        return etc_hosts, wildcards
 
     def update(self):
-        new_etc_hosts = self.generate()
+        new_etc_hosts, new_wildcards = self.generate()
 
         if self.cached_etc_hosts != new_etc_hosts:
             log("Hosts entries have changed, write/reload configuration")
@@ -258,9 +276,21 @@ class DnsEntries(object):
 
             self.reload()
 
+        if self.cached_wildcards != new_wildcards:
+            log("Wildcards entries have changed, write/reload configuration")
+
+            self.cached_wildcards = new_wildcards
+
+            with open(DNSMASQ_WILDCARDS_FILE, 'w') as fd:
+                fd.write(self.cached_wildcards)
+
+            self.restart()
+
     def reload(self):
         os.system("sv hup dnsmasq")
 
+    def restart(self):
+        os.system("sv restart dnsmasq")
 
 signal.signal(signal.SIGINT,  sighandler)
 signal.signal(signal.SIGTERM, sighandler)
