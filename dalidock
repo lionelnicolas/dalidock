@@ -15,7 +15,6 @@ DOCKER_IP     = os.getenv('DOCKER_IP', '172.17.0.1')
 DNS_DOMAIN   = os.getenv('DNS_DOMAIN',   'local')
 
 # dnsmasq default values
-DNSMASQ_PID_FILE   = os.getenv('DNSMASQ_PID_FILE',   '/run/dnsmasq/dnsmasq.pid')
 DNSMASQ_HOSTS_FILE = os.getenv('DNSMASQ_HOSTS_FILE', '/run/dnsmasq/hosts/docker')
 
 def log(msg, level="INFO", hostname=False):
@@ -260,7 +259,8 @@ class DnsEntries(object):
             self.reload()
 
     def reload(self):
-        os.system("kill -HUP $(cat %s)" % (DNSMASQ_PID_FILE))
+        os.system("sv hup dnsmasq")
+
 
 signal.signal(signal.SIGINT,  sighandler)
 signal.signal(signal.SIGTERM, sighandler)
