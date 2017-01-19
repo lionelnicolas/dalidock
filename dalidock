@@ -170,11 +170,11 @@ class DockerEventsHandler(object):
         elif status == 'die':   self.dns.remove(cid)
 
         self.dns.write()
-        self.dns.reload()
 
 class DnsEntries(object):
     def __init__(self):
-        self.entries = dict()
+        self.entries          = dict()
+        self.cached_etc_hosts = ""
 
     def add(self, cid, hostname, ipaddress, network, domain, name, aliases):
         entry = {
@@ -247,8 +247,17 @@ class DnsEntries(object):
         return etc_hosts
 
     def write(self):
-        with open(DNSMASQ_HOSTS_FILE, 'w') as fd:
-            fd.write(self.generate())
+        new_etc_hosts = self.generate()
+
+        if self.cached_etc_hosts != new_etc_hosts:
+            log("Hosts entries have changed, write/reload configuration")
+
+            self.cached_etc_hosts = new_etc_hosts
+
+            with open(DNSMASQ_HOSTS_FILE, 'w') as fd:
+                fd.write(self.cached_etc_hosts)
+
+            self.reload()
 
     def reload(self):
         os.system("kill -HUP $(cat %s)" % (DNSMASQ_PID_FILE))
