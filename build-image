@@ -1,0 +1,54 @@
+#!/bin/sh
+
+# Exit on failure
+set -e
+
+# Exit on unassigned variable use
+set -u
+
+# Switch working directory
+cd $(dirname $0)
+
+# Avoid locale issues
+export LC_ALL=C
+
+# dpkg shouldn't ask questions
+export DEBIAN_FRONTEND=noninteractive
+
+# disable fsync from dpkg
+echo force-unsafe-io > /etc/dpkg/dpkg.cfg.d/disable-fsync
+
+# Configure main repository
+cat >/etc/apt/sources.list <<EOF
+deb http://archive.ubuntu.com/ubuntu/ xenial main restricted universe multiverse
+deb http://security.ubuntu.com/ubuntu xenial-security main restricted universe multiverse
+deb http://archive.ubuntu.com/ubuntu/ xenial-updates main restricted universe multiverse
+EOF
+
+# Update packages list
+apt-get update
+
+# Install usefull packages
+apt-get install -y --no-install-recommends \
+	bind9-host \
+	ca-certificates \
+	dnsutils \
+	iproute2 \
+	net-tools \
+	runit \
+	wget
+
+# Install tini (a tiny but valid init for containers)
+TINI_VERSION=v0.13.2
+http_proxy= gpg --keyserver ha.pool.sks-keyservers.net --recv-keys 0527A9B7
+wget -O/usr/sbin/tini     "https://github.com/krallin/tini/releases/download/${TINI_VERSION}/tini"
+wget -O/usr/sbin/tini.asc "https://github.com/krallin/tini/releases/download/${TINI_VERSION}/tini.asc"
+gpg --verify /usr/sbin/tini.asc
+rm -f /usr/sbin/tini.asc
+chmod a+x /usr/sbin/tini
+
+# Clean rootfs
+cd /
+apt-get clean
+rm -rf /var/lib/apt/lists/*
+rm -rf /tmp/* /var/tmp/*

@@ -1,0 +1,16 @@
+#!/bin/sh
+
+# exit on failure
+set -e
+
+# save environment variables
+export >> /etc/environment
+
+# a command has been specified, run it
+if [ ! -z "${1}" ]; then
+	exec tini -g -- "$@"
+
+# start runit services
+else
+	exec tini -g -- /usr/sbin/runsvdir-start
+fi
