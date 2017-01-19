@@ -1,0 +1,7 @@
+#!/bin/sh
+
+DNSMASQ_USER=dnsmasq
+DNSMASQ_GROUP=nogroup
+
+DNSMASQ_CONFDIR=/etc/dnsmasq.d
+DNSMASQ_DATADIR=/run/dnsmasq

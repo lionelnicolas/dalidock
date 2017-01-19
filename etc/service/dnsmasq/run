@@ -1,0 +1,20 @@
+#!/bin/sh
+
+# source environment variables
+. /etc/default-environment
+. /etc/environment
+
+# change working directory
+cd $(dirname $0)
+
+# overwrite distribution configuration
+echo -n >/etc/dnsmasq.conf
+
+# create data directory
+mkdir -p ${DNSMASQ_DATADIR}
+
+exec dnsmasq \
+	--keep-in-foreground \
+	--conf-dir=${DNSMASQ_CONFDIR} \
+	--pid-file=${DNSMASQ_DATADIR}/dnsmasq.pid \
+	2>&1

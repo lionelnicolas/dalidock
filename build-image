@@ -32,6 +32,7 @@ apt-get update
 apt-get install -y --no-install-recommends \
 	bind9-host \
 	ca-certificates \
+	dnsmasq \
 	dnsutils \
 	iproute2 \
 	net-tools \
