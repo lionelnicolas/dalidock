@@ -169,7 +169,7 @@ class DockerEventsHandler(object):
         if   status == 'start': self.dns.add(cid, hostname, ipaddress, network, domain, name, aliases)
         elif status == 'die':   self.dns.remove(cid)
 
-        self.dns.write()
+        self.dns.update()
 
 class DnsEntries(object):
     def __init__(self):
@@ -246,7 +246,7 @@ class DnsEntries(object):
 
         return etc_hosts
 
-    def write(self):
+    def update(self):
         new_etc_hosts = self.generate()
 
         if self.cached_etc_hosts != new_etc_hosts:
