@@ -380,11 +380,17 @@ class LoadbalancerEntries(object):
 
             for http_entry in data['http_entries']:
                 http_host, http_port = http_entry.split(':')
+                wildcard             = False
+
+                if http_host.startswith('*.'):
+                    http_host = http_host[2:]
+                    wildcard  = True
 
                 if http_host not in http_conf:
-                    http_conf[http_host]            = dict()
-                    http_conf[http_host]['domain']  = data['domain']
-                    http_conf[http_host]['servers'] = list()
+                    http_conf[http_host]             = dict()
+                    http_conf[http_host]['wildcard'] = wildcard
+                    http_conf[http_host]['domain']   = data['domain']
+                    http_conf[http_host]['servers']  = list()
 
                 http_conf[http_host]['servers'].append({'name': data['hostname'], 'ipaddress': data['ipaddress'], 'port': http_port})
 
@@ -405,7 +411,7 @@ class LoadbalancerEntries(object):
                 )
             haproxy_http_backends += "\n"
 
-            self.dns.add(http_host, http_host, self.myip, None, http_conf[http_host]['domain'], http_host, "", False)
+            self.dns.add(http_host, http_host, self.myip, None, http_conf[http_host]['domain'], http_host, "", http_conf[http_host]['wildcard'])
 
         haproxy_config += haproxy_http_frontends
         haproxy_config += haproxy_http_backends
