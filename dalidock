@@ -160,24 +160,23 @@ class DockerEventsHandler(object):
             error("Fail to fetch description of container '%s'" % (containerid))
             return
 
-        cid          = self.docker.getId(data)
-        name         = self.docker.getName(data)
-        hostname     = self.docker.getHostname(data)
-        ipaddress    = self.docker.getIPAddress(data)
-        network      = self.docker.getNetworkName(data)
-        domain       = self.docker.getLabel(data, 'dns.domain',   DNS_DOMAIN)
-        use_wildcard = self.docker.getLabel(data, 'dns.wildcard', DNS_WILDCARD).lower()
-        aliases      = self.docker.getLabel(data, 'dns.aliases',  '')
-
-        if use_wildcard in [ '1', 'true', 'yes' ]:
-            use_wildcard=True
+        cid              = self.docker.getId(data)
+        name             = self.docker.getName(data)
+        hostname         = self.docker.getHostname(data)
+        ipaddress        = self.docker.getIPAddress(data)
+        network          = self.docker.getNetworkName(data)
+        dns_domain       = self.docker.getLabel(data, 'dns.domain',   DNS_DOMAIN)
+        dns_use_wildcard = self.docker.getLabel(data, 'dns.wildcard', DNS_WILDCARD).lower()
+        dns_aliases      = self.docker.getLabel(data, 'dns.aliases',  '')
+        if dns_use_wildcard in [ '1', 'true', 'yes' ]:
+            dns_use_wildcard=True
         else:
-            use_wildcard=False
+            dns_use_wildcard=False
 
-        log("name=%-10s hostname=%-10s ip=%-15s net=%-10s domain=%-10s use_wildcard=%s" % (name, hostname, ipaddress, network, domain, use_wildcard))
+        log("name=%-10s hostname=%-10s ip=%-15s net=%-10s domain=%-10s use_wildcard=%s" % (name, hostname, ipaddress, network, dns_domain, dns_use_wildcard))
 
         if   status == 'start':
-            self.dns.add(cid, hostname, ipaddress, network, domain, name, aliases, use_wildcard)
+            self.dns.add(cid, hostname, ipaddress, network, dns_domain, name, dns_aliases, dns_use_wildcard)
         elif status == 'die':
             self.dns.remove(cid)
 
