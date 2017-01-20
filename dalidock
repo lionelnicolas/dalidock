@@ -16,6 +16,13 @@ DOCKER_IP     = os.getenv('DOCKER_IP', '172.17.0.1')
 DNS_DOMAIN   = os.getenv('DNS_DOMAIN',   'local')
 DNS_WILDCARD = os.getenv('DNS_WILDCARD', 'false')
 
+# Loadbalancer default values
+LB_DOMAIN = os.getenv('LB_DOMAIN', 'local')
+
+# HAproxy default values
+HAPROXY_CONFIG_TEMPLATE = os.getenv('HAPROXY_CONFIG_TEMPLATE', '/etc/haproxy/haproxy.cfg')
+HAPROXY_CONFIG_FILE     = os.getenv('HAPROXY_CONFIG_FILE',     '/run/haproxy/haproxy.cfg')
+
 # dnsmasq default values
 DNSMASQ_WILDCARDS_FILE = os.getenv('DNSMASQ_WILDCARDS_FILE', '/run/dnsmasq/conf/docker')
 DNSMASQ_HOSTS_FILE     = os.getenv('DNSMASQ_HOSTS_FILE',     '/run/dnsmasq/hosts/docker')
@@ -138,6 +145,7 @@ class DockerEventsHandler(object):
     def __init__(self):
         self.docker = DockerClient(DOCKER_SOCKET)
         self.dns    = DnsEntries()
+        self.lb     = LoadbalancerEntries(self.dns)
         self.loop   = True
 
     def serve(self):
@@ -194,6 +202,8 @@ class DockerEventsHandler(object):
         dns_domain       = self.docker.getLabel(data, 'dns.domain',   DNS_DOMAIN)
         dns_use_wildcard = self.docker.getLabel(data, 'dns.wildcard', DNS_WILDCARD).lower()
         dns_aliases      = self.docker.getLabel(data, 'dns.aliases',  '')
+        lb_domain        = self.docker.getLabel(data, 'lb.domain',    LB_DOMAIN)
+        lb_http_map      = self.docker.getLabel(data, 'lb.http',      '')
         if dns_use_wildcard in [ '1', 'true', 'yes' ]:
             dns_use_wildcard=True
         else:
@@ -203,10 +213,14 @@ class DockerEventsHandler(object):
 
         if   status == 'start':
             self.dns.add(cid, hostname, ipaddress, network, dns_domain, name, dns_aliases, dns_use_wildcard)
+            self.lb.add(cid, hostname, ipaddress, lb_domain, lb_http_map)
+
         elif status == 'die':
             self.dns.remove(cid)
+            self.lb.remove(cid)
 
         self.dns.update()
+        self.lb.update()
 
 class DnsEntries(object):
     def __init__(self):
@@ -319,6 +333,100 @@ class DnsEntries(object):
 
     def restart(self):
         os.system("sv restart dnsmasq")
+
+class LoadbalancerEntries(object):
+    def __init__(self, dns):
+        self.dns                   = dns
+        self.entries               = dict()
+        self.myip                  = get_own_ip_address()
+        self.cached_haproxy_config = ""
+
+    def add(self, cid, hostname, ipaddress, domain, http_map):
+        entry = {
+            'hostname':     hostname,
+            'ipaddress':    ipaddress,
+            'domain':       domain,
+            'http_entries': list(),
+        }
+
+        for http_entry in http_map.split(','):
+            if not http_entry:
+                # empty string
+                continue
+
+            entry['http_entries'].append(http_entry)
+
+        self.entries[cid] = entry
+
+    def remove(self, cid):
+        if cid in self.entries:
+            del self.entries[cid]
+
+    def show(self):
+        for entry in self.entries:
+            print (self.entries[entry])
+
+    def generate(self):
+        http_conf              = dict()
+        haproxy_config         = ""
+        haproxy_http_frontends = ""
+        haproxy_http_backends  = ""
+
+        with open(HAPROXY_CONFIG_TEMPLATE, 'r') as fd:
+            haproxy_config = fd.read()
+
+        for entry in self.entries:
+            data = self.entries[entry]
+
+            for http_entry in data['http_entries']:
+                http_host, http_port = http_entry.split(':')
+
+                if http_host not in http_conf:
+                    http_conf[http_host]            = dict()
+                    http_conf[http_host]['domain']  = data['domain']
+                    http_conf[http_host]['servers'] = list()
+
+                http_conf[http_host]['servers'].append({'name': data['hostname'], 'ipaddress': data['ipaddress'], 'port': http_port})
+
+        for http_host in http_conf:
+            haproxy_http_frontends += "\t# handle %s\n" % (http_host)
+            haproxy_http_frontends += "\tacl is_%s hdr_reg(host) ^%s(\..+$|$)\n" % (http_host, http_host)
+            haproxy_http_frontends += "\tacl is_%s hdr_reg(host) %s(\..+$|$)\n"  % (http_host, http_host)
+            haproxy_http_frontends += "\tuse_backend backend_http_%s if is_%s\n" % (http_host, http_host)
+            haproxy_http_frontends += "\n"
+
+            haproxy_http_backends += "backend backend_http_%s\n" % (http_host)
+            for server in http_conf[http_host]['servers']:
+                haproxy_http_backends += "\tserver %s %s:%s check port %s\n" % (
+                    server['name'],
+                    server['ipaddress'],
+                    server['port'],
+                    server['port'],
+                )
+            haproxy_http_backends += "\n"
+
+            self.dns.add(http_host, http_host, self.myip, None, http_conf[http_host]['domain'], http_host, "", False)
+
+        haproxy_config += haproxy_http_frontends
+        haproxy_config += haproxy_http_backends
+
+        return haproxy_config
+
+    def update(self):
+        new_haproxy_config = self.generate()
+
+        if self.cached_haproxy_config != new_haproxy_config:
+            log("HAproxy configuration has changed, write/reload configuration")
+
+            self.cached_haproxy_config = new_haproxy_config
+
+            with open(HAPROXY_CONFIG_FILE, 'w') as fd:
+                fd.write(self.cached_haproxy_config)
+
+            self.restart()
+
+    def restart(self):
+        os.system("sv restart haproxy")
 
 signal.signal(signal.SIGINT,  sighandler)
 signal.signal(signal.SIGTERM, sighandler)
