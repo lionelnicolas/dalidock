@@ -6,6 +6,7 @@ import json
 import os
 import sys
 import signal
+import subprocess
 
 # docker default values
 DOCKER_SOCKET = os.getenv('DOCKER_SOCKET', 'unix://var/run/docker.sock')
@@ -18,6 +19,31 @@ DNS_WILDCARD = os.getenv('DNS_WILDCARD', 'false')
 # dnsmasq default values
 DNSMASQ_WILDCARDS_FILE = os.getenv('DNSMASQ_WILDCARDS_FILE', '/run/dnsmasq/conf/docker')
 DNSMASQ_HOSTS_FILE     = os.getenv('DNSMASQ_HOSTS_FILE',     '/run/dnsmasq/hosts/docker')
+
+def get_own_ip_address():
+    # get default network interface
+    iface = subprocess.check_output(
+        "awk '{ if ($2 == \"00000000\") { print $1; exit; } }' /proc/net/route",
+        shell=True
+    )
+
+    if not iface:
+        raise Exception("Fail to get default network interface")
+    else:
+        iface = iface.decode('utf8').split('\n')[0]
+
+    # get IP address of default network interface
+    ipaddr = subprocess.check_output(
+        "ip addr show dev %s | awk -F'[ \t/]+' '/inet / { print $3; exit; }'" % (iface),
+        shell=True
+    )
+
+    if not ipaddr:
+        raise Exception("Fail to get interface %s IP address" % (iface))
+    else:
+        ipaddr = ipaddr.decode('utf8').split('\n')[0]
+
+    return ipaddr
 
 def get_process_info():
     return "%s[%d]" % (os.path.basename(sys.argv[0]), os.getpid())
