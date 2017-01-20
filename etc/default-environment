@@ -2,6 +2,10 @@
 
 DNSMASQ_USER=dnsmasq
 DNSMASQ_GROUP=nogroup
-
 DNSMASQ_CONFDIR=/etc/dnsmasq.d
 DNSMASQ_DATADIR=/run/dnsmasq
+
+HAPROXY_USER=haproxy
+HAPROXY_GROUP=haproxy
+HAPROXY_CONFDIR=/etc/haproxy
+HAPROXY_DATADIR=/run/haproxy

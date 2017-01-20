@@ -35,6 +35,7 @@ apt-get install -y --no-install-recommends \
 	dnsmasq \
 	dnsutils \
 	ed \
+	haproxy \
 	iproute2 \
 	net-tools \
 	runit \

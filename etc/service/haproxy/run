@@ -1,0 +1,19 @@
+#!/bin/sh
+
+# source environment variables
+. /etc/default-environment
+. /etc/environment
+
+# create data directory
+mkdir -p ${HAPROXY_DATADIR}
+
+# generate initial configuration file
+if [ ! -f ${HAPROXY_DATADIR}/haproxy.cfg ]; then
+	cp ${HAPROXY_CONFDIR}/haproxy.cfg ${HAPROXY_DATADIR}/haproxy.cfg
+fi
+
+# start haproxy
+exec haproxy \
+	-f ${HAPROXY_DATADIR}/haproxy.cfg \
+	-db \
+	2>&1
