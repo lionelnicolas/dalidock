@@ -75,8 +75,9 @@ def sighandler(sig, frame):
 
 class DockerClient(object):
     def __init__(self, url='unix://var/run/docker.sock'):
-        self.url  = url
-        self.conn = docker.Client(base_url=self.url)
+        self.url   = url
+        self.conn  = docker.Client(base_url=self.url)
+        self.cache = dict()
 
         self.showInformations()
 
@@ -90,14 +91,24 @@ class DockerClient(object):
         log("API Version:      %s\n" % (docker_version['ApiVersion']))
 
     def getContainerData(self, containerid):
+        # read data from cache if found
+        if containerid in self.cache:
+            return self.cache[containerid]
+
         try:
-            return self.conn.inspect_container(containerid)
+            data = self.conn.inspect_container(containerid)
         except docker.errors.NotFound:
             error("Container '%s' does not exists" % (containerid))
-            return False
+            data = False
         except docker.errors.APIError as e:
             error("API error while getting information: %s" % (str(e)))
-            return False
+            data = False
+
+        # save data to cache
+        if data:
+            self.cache[containerid] = data
+
+        return data
 
     def getId(self, data):
         # return container id
@@ -271,6 +282,10 @@ class DockerEventsHandler(object):
         elif status == 'die':
             self.dns.remove(cid)
             self.lb.remove(cid)
+
+            # remove container data from cache
+            if containerid in self.docker.cache:
+                del self.docker.cache[containerid]
 
         self.lb.update()
         self.dns.update()
