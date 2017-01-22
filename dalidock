@@ -327,6 +327,23 @@ class DnsEntries(object):
         if cid in self.entries:
             del self.entries[cid]
 
+    def remove_lb(self, http_host):
+        fake_cid = "%s_%s" % (self.myid, http_host)
+
+        if fake_cid in self.entries:
+            self.entries[fake_cid]['count'] -= 1
+
+            if self.entries[fake_cid]['count'] <= 0:
+                del self.entries[fake_cid]
+
+    def flush_lb(self):
+        fake_cid_prefix = "%s_" % (self.myid)
+        ids             = list(self.entries.keys())
+
+        for entry in ids:
+            if entry.startswith(fake_cid_prefix):
+                del self.entries[entry]
+
     def show(self):
         pp = pprint.PrettyPrinter(indent=4)
         pp.pprint(self.entries)
@@ -450,6 +467,8 @@ class LoadbalancerEntries(object):
 
         with open(HAPROXY_CONFIG_TEMPLATE, 'r') as fd:
             haproxy_config = fd.read()
+
+        self.dns.flush_lb()
 
         for entry in self.entries:
             data = self.entries[entry]
