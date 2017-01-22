@@ -36,6 +36,7 @@ apt-get install -y --no-install-recommends \
 	dnsutils \
 	ed \
 	haproxy \
+	inotify-tools \
 	iproute2 \
 	net-tools \
 	runit \

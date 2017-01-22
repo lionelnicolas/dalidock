@@ -1,0 +1,19 @@
+#!/bin/sh
+
+# source environment variables
+. /etc/default-environment
+. /etc/environment
+
+# do not restart dnsmasq on first iteration
+if [ -f /run/inotify.trigger ]; then
+	sv restart dnsmasq
+else
+	touch /run/inotify.trigger
+fi
+
+# this command will return on resolv.conf changes by NetworkManager, so
+# this runit service script will be executed again (and dnsmasq will be
+# restarted to reload upstream nameservers)
+exec inotifywait \
+	/run/NetworkManager/resolv.conf \
+	2>&1
