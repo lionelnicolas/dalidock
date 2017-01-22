@@ -6,11 +6,11 @@ import json
 import os
 import sys
 import signal
+import socket
 import subprocess
 
 # docker default values
 DOCKER_SOCKET = os.getenv('DOCKER_SOCKET', 'unix://var/run/docker.sock')
-DOCKER_IP     = os.getenv('DOCKER_IP', '172.17.0.1')
 
 # DNS default values
 DNS_DOMAIN   = os.getenv('DNS_DOMAIN',   'local')
@@ -115,7 +115,7 @@ class DockerClient(object):
 
         for net in data['NetworkSettings']['Networks']:
             if net == 'host':
-                return DOCKER_IP
+                return get_own_ip_address()
             else:
                 return data['NetworkSettings']['Networks'][net]['IPAddress']
 
@@ -144,14 +144,18 @@ class DockerClient(object):
 class DockerEventsHandler(object):
     def __init__(self):
         self.docker = DockerClient(DOCKER_SOCKET)
-        self.dns    = DnsEntries()
-        self.lb     = LoadbalancerEntries(self.dns)
+        self.myid   = self.getMyCid()
+        self.dns    = DnsEntries(self.myid)
+        self.lb     = LoadbalancerEntries(self.myid, self.dns)
         self.loop   = True
 
     def serve(self):
         log("Starting docker events handler")
 
-        # get all running containers, then fix/update their network configuration if needed
+        # register current dalidock container (which will be used later by loadbalancer)
+        self.registerDalidockContainer()
+
+        # get all other running containers, then fix/update their network configuration if needed
         self.loadAllContainers()
 
         # listenning events
@@ -166,6 +170,54 @@ class DockerEventsHandler(object):
                     continue
 
                 self.processEvt(evt)
+
+    def getMyCid(self):
+        myid = False
+        myip = get_own_ip_address()
+
+        for container in self.docker.conn.containers():
+            data      = self.docker.getContainerData(container['Id'])
+            ipaddress = self.docker.getIPAddress(data)
+            hostname  = self.docker.getHostname(data)
+
+            if myip != ipaddress:
+                continue
+
+            if hostname != socket.gethostname():
+                continue
+
+            myid = container['Id']
+
+        if not myid:
+            fatal("failed to get dalidock container ID (this should not happen, this is a bug)")
+
+        log("dalidock container ID is %s" % (myid))
+
+        return myid
+
+    def registerDalidockContainer(self):
+        myid = False
+        myip = get_own_ip_address()
+
+        for container in self.docker.conn.containers():
+            data      = self.docker.getContainerData(container['Id'])
+            ipaddress = self.docker.getIPAddress(data)
+            hostname  = self.docker.getHostname(data)
+
+            if myip != ipaddress:
+                continue
+
+            if hostname != socket.gethostname():
+                continue
+
+            myid = container['Id']
+
+        if not myid:
+            fatal("failed to get dalidock container ID (this should not happen, this is a bug)")
+
+        log("registering dalidock container in DNS")
+
+        self.handleContainer(myid, 'start')
 
     def loadAllContainers(self):
         for container in self.docker.conn.containers():
@@ -219,11 +271,12 @@ class DockerEventsHandler(object):
             self.dns.remove(cid)
             self.lb.remove(cid)
 
-        self.dns.update()
         self.lb.update()
+        self.dns.update()
 
 class DnsEntries(object):
-    def __init__(self):
+    def __init__(self, myid):
+        self.myid             = myid
         self.entries          = dict()
         self.cached_etc_hosts = ""
         self.cached_wildcards = ""
@@ -237,6 +290,7 @@ class DnsEntries(object):
             'name':         name,
             'aliases':      [name],
             'use_wildcard': use_wildcard,
+            'count':        1,
         }
 
         for alias in aliases.split(','):
@@ -247,6 +301,26 @@ class DnsEntries(object):
             entry['aliases'].append(alias)
 
         self.entries[cid] = entry
+
+    def add_lb(self, http_host, ipaddress, domain, use_wildcard):
+        fake_cid = "%s_%s" % (self.myid, http_host)
+
+        if fake_cid in self.entries:
+            entry = self.entries[fake_cid]
+        else:
+            entry = {
+                'hostname':     http_host,
+                'ipaddress':    ipaddress,
+                'network':      None,
+                'domain':       domain,
+                'name':         http_host,
+                'aliases':      [http_host],
+                'use_wildcard': use_wildcard,
+                'count':        0,
+            }
+
+        entry['count']         += 1
+        self.entries[fake_cid]  = entry
 
     def remove(self, cid):
         if cid in self.entries:
@@ -335,7 +409,8 @@ class DnsEntries(object):
         os.system("sv restart dnsmasq")
 
 class LoadbalancerEntries(object):
-    def __init__(self, dns):
+    def __init__(self, myid, dns):
+        self.myid                 = myid
         self.dns                   = dns
         self.entries               = dict()
         self.myip                  = get_own_ip_address()
@@ -411,7 +486,7 @@ class LoadbalancerEntries(object):
                 )
             haproxy_http_backends += "\n"
 
-            self.dns.add(http_host, http_host, self.myip, None, http_conf[http_host]['domain'], http_host, "", http_conf[http_host]['wildcard'])
+            self.dns.add_lb(http_host, self.myip, http_conf[http_host]['domain'], http_conf[http_host]['wildcard'])
 
         haproxy_config += haproxy_http_frontends
         haproxy_config += haproxy_http_backends
