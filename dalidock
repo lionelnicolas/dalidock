@@ -4,6 +4,7 @@
 import docker
 import json
 import os
+import pprint
 import sys
 import signal
 import socket
@@ -327,8 +328,8 @@ class DnsEntries(object):
             del self.entries[cid]
 
     def show(self):
-        for entry in self.entries:
-            print (self.entries[entry])
+        pp = pprint.PrettyPrinter(indent=4)
+        pp.pprint(self.entries)
 
     def generate(self):
         etc_hosts = ""
@@ -438,8 +439,8 @@ class LoadbalancerEntries(object):
             del self.entries[cid]
 
     def show(self):
-        for entry in self.entries:
-            print (self.entries[entry])
+        pp = pprint.PrettyPrinter(indent=4)
+        pp.pprint(self.entries)
 
     def generate(self):
         http_conf              = dict()
