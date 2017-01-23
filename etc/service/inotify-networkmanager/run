@@ -15,5 +15,7 @@ fi
 # this runit service script will be executed again (and dnsmasq will be
 # restarted to reload upstream nameservers)
 exec inotifywait \
+	--event close_write \
+	--event move \
 	/run/NetworkManager/resolv.conf \
 	2>&1
