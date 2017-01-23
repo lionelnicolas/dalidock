@@ -4,9 +4,6 @@
 . /etc/default-environment
 . /etc/environment
 
-# change working directory
-cd $(dirname $0)
-
 # wait for dnsmasq to be running
 while [ ! -f ${DNSMASQ_DATADIR}/dnsmasq.pid -a -z "$(cat ${DNSMASQ_DATADIR}/dnsmasq.pid)" -a ! -d "/proc/$(cat ${DNSMASQ_DATADIR}/dnsmasq.pid)" ]; do
 	echo "waiting for dnsmasq to be up ..."
