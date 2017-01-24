@@ -4,16 +4,30 @@
 . /etc/default-environment
 . /etc/environment
 
-# do not restart dnsmasq on first iteration
-if [ -f /run/inotify.trigger ]; then
-	sv restart dnsmasq
+# wait for dnsmasq to be running
+while [ ! -f ${DNSMASQ_DATADIR}/dnsmasq.pid -a -z "$(cat ${DNSMASQ_DATADIR}/dnsmasq.pid)" -a ! -d "/proc/$(cat ${DNSMASQ_DATADIR}/dnsmasq.pid)" ]; do
+	echo "waiting for dnsmasq to be up ..."
+	sleep .5
+done
+
+# generate resolv.conf file
+# if NetworkManager's resolv.conf is mapped, use its nameservers, or use
+# the docker-provided ones instead
+
+resolvconf_file=${DNSMASQ_DATADIR}/resolv.conf.generated
+
+if [ -f /run/NetworkManager/resolv.conf ]; then
+	grep "^nameserver\|^search" /run/NetworkManager/resolv.conf >${resolvconf_file}
 else
-	touch /run/inotify.trigger
+	grep "^nameserver\|^search" /etc/resolv.conf >${resolvconf_file}
 fi
 
+echo "generated ${resolvconf_file}"
+
 # this command will return on resolv.conf changes by NetworkManager, so
-# this runit service script will be executed again (and dnsmasq will be
-# restarted to reload upstream nameservers)
+# this runit service script will be executed again (and dnsmasq will
+# reload upstream nameservers if configuration has changed, as we are
+# not using the '--no-poll' dnsmasq option)
 exec inotifywait \
 	--event close_write \
 	--event move \
