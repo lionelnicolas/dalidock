@@ -506,8 +506,7 @@ class LoadbalancerEntries(object):
 
         for http_host in http_conf:
             haproxy_http_frontends += "\t# handle %s\n" % (http_host)
-            haproxy_http_frontends += "\tacl is_%s hdr_reg(host) ^%s(\..+$|$)\n" % (http_host, http_host)
-            haproxy_http_frontends += "\tacl is_%s hdr_reg(host) %s(\..+$|$)\n"  % (http_host, http_host)
+            haproxy_http_frontends += "\tacl is_%s hdr_reg(host) ^(.*\.|)%s(\..+$|$)\n" % (http_host, http_host)
             haproxy_http_frontends += "\tuse_backend backend_http_%s if is_%s\n" % (http_host, http_host)
             haproxy_http_frontends += "\n"
 
