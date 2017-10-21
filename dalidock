@@ -541,7 +541,7 @@ class LoadbalancerEntries(object):
             self.restart()
 
     def restart(self):
-        os.system("sv restart haproxy")
+        os.system("haproxy-start %s" % (HAPROXY_CONFIG_FILE))
 
 signal.signal(signal.SIGINT,  sighandler)
 signal.signal(signal.SIGTERM, sighandler)

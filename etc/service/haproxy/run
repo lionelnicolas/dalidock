@@ -13,7 +13,9 @@ if [ ! -f ${HAPROXY_DATADIR}/haproxy.cfg ]; then
 fi
 
 # start haproxy
-exec haproxy \
-	-f ${HAPROXY_DATADIR}/haproxy.cfg \
-	-db \
+haproxy \
+	${HAPROXY_DATADIR}/haproxy.cfg \
+	-D \
 	2>&1
+
+exec sleep INFINITY

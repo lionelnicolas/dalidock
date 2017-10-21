@@ -1,0 +1,26 @@
+#!/bin/sh
+
+# exit on failure
+set -e
+
+# exit on unassigned variable
+set -u
+
+# haproxy binary location
+CFG=${1:-/run/haproxy/haproxy.cfg}
+HAPROXY=haproxy
+CURRPID=$(pgrep -x -n ${HAPROXY} || true)
+
+# kill all haproxy instances except the newest one
+for PID in $(pgrep -x ${HAPROXY}); do
+	if [ "${PID}" = "${CURRPID}" ]; then
+		continue
+	fi
+
+	kill -SIGTERM ${PID} 2>/dev/null || true
+	sleep 1
+	kill -SIGKILL ${PID} 2>/dev/null || true
+done
+
+# reload haproxy (and drain connections)
+${HAPROXY} -f ${CFG} -D -sf ${CURRPID}
