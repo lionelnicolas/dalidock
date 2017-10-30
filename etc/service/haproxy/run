@@ -6,10 +6,27 @@
 
 # create data directory
 mkdir -p ${HAPROXY_DATADIR}
+mkdir -p ${HAPROXY_DATADIR}/certs
 
 # generate initial configuration file
 if [ ! -f ${HAPROXY_DATADIR}/haproxy.cfg ]; then
 	cp ${HAPROXY_CONFDIR}/haproxy.cfg ${HAPROXY_DATADIR}/haproxy.cfg
+fi
+
+# generate a default self-signed certificate if certs directory is empty
+if [ -z "$(ls -1 ${HAPROXY_DATADIR}/certs)" ]; then
+	# generate SSL key and certificate
+	openssl req \
+		-subj "/C=US/ST=Dalidock/L=Dalidock/O=Dalidock/CN=dalidock.default" \
+		-newkey rsa:2048 \
+		-nodes \
+		-keyout ${HAPROXY_DATADIR}/dalidock.default.key \
+		-x509 \
+		-days 365 \
+		-out ${HAPROXY_DATADIR}/dalidock.default.crt
+
+	# generate PEM file
+	cat ${HAPROXY_DATADIR}/dalidock.default.crt ${HAPROXY_DATADIR}/dalidock.default.key >${HAPROXY_DATADIR}/certs/dalidock.default.pem
 fi
 
 # start haproxy
