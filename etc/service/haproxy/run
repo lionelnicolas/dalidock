@@ -31,7 +31,7 @@ fi
 
 # start haproxy
 haproxy \
-	${HAPROXY_DATADIR}/haproxy.cfg \
+	-f ${HAPROXY_DATADIR}/haproxy.cfg \
 	-D \
 	2>&1
 
