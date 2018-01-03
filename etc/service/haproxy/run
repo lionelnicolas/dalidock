@@ -22,7 +22,7 @@ if [ -z "$(ls -1 ${HAPROXY_DATADIR}/certs)" ]; then
 		-nodes \
 		-keyout ${HAPROXY_DATADIR}/dalidock.default.key \
 		-x509 \
-		-days 365 \
+		-days 3650 \
 		-out ${HAPROXY_DATADIR}/dalidock.default.crt
 
 	# generate PEM file
