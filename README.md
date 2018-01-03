@@ -216,3 +216,12 @@ tomcat.frontend.srv.        0   IN   A   172.17.0.2
 ```
 
 Please note that `lb.http` label can take comma-separated list of `HOST:PORT`.
+
+## Build
+
+In order to build this container image instead of using the one on the Docker Hub,
+you can use the following command from the root directory of this repository:
+
+```bash
+docker build -t lionelnicolas/dalidock .
+```
