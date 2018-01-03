@@ -34,7 +34,7 @@ docker run \
     --publish 80:80 \
     --env DNS_DOMAIN=my.local.env \
     --env LB_DOMAIN=my.local.env \
-    dalidock
+    lionelnicolas/dalidock
 ```
 
 ### Make your host uses dalidock as a DNS server
