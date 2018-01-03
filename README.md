@@ -225,3 +225,10 @@ you can use the following command from the root directory of this repository:
 ```bash
 docker build -t lionelnicolas/dalidock .
 ```
+
+## License
+
+This is licensed under the Apache License, Version 2.0. Please see [LICENSE](https://github.com/lionelnicolas/dalidock/blob/master/LICENSE)
+for the full license text.
+
+Copyright 2016-2017 Lionel Nicolas
