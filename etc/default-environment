@@ -9,3 +9,5 @@ HAPROXY_USER=haproxy
 HAPROXY_GROUP=haproxy
 HAPROXY_CONFDIR=/etc/haproxy
 HAPROXY_DATADIR=/run/haproxy
+
+USE_AD_BLOCKER=false

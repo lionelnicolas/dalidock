@@ -1,0 +1,27 @@
+#!/bin/sh
+
+# source environment variables
+. /etc/default-environment
+. /etc/environment
+
+# skip ads blocker by default
+if [ "${USE_AD_BLOCKER:-}" != "true" ]; then
+	exec sleep INFINITY
+fi
+
+# create hosts directory
+mkdir -p ${DNSMASQ_DATADIR}/hosts
+
+# wait for dnsmasq to be running
+while [ -z "$(pidof dnsmasq 2>/dev/null)" ]; do
+	echo "waiting for dnsmasq to be up ..."
+	sleep .5
+done
+
+# download /etc/hosts file to block
+wget --quiet --output-document=/tmp/hosts.ads.orig https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts
+grep '^0\.0\.0\.0' /tmp/hosts.ads.orig >${DNSMASQ_DATADIR}/hosts/stevenblack_hosts_file
+rm -f /tmp/hosts.ads.orig
+
+# wait forever
+exec sleep INFINITY

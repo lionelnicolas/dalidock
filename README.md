@@ -13,11 +13,12 @@
 
 `dalidock` can be configured using environment variables:
 
-| Variable       | Default | Description                                               |
-|----------------|---------|-----------------------------------------------------------|
-| `DNS_WILDCARD` | `false` | Enable DNS wildcard records by default                    |
-| `DNS_DOMAIN`   | `local` | Domain to append to DNS records to register               |
-| `LB_DOMAIN`    | `local` | Domain to append to reverse-proxy DNS records to register |
+| Variable        | Default | Description                                               |
+|-----------------|---------|-----------------------------------------------------------|
+| `DNS_WILDCARD ` | `false` | Enable DNS wildcard records by default                    |
+| `DNS_DOMAIN`    | `local` | Domain to append to DNS records to register               |
+| `LB_DOMAIN`     | `local` | Domain to append to reverse-proxy DNS records to register |
+| `USE_AD_BLOCKER`| `false` | Override hosts using https://github.com/StevenBlack/hosts |
 
 ```shell=/bin/sh
 docker run \
