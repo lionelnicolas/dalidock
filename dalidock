@@ -15,50 +15,51 @@ import socket
 import subprocess
 
 # docker default values
-DOCKER_SOCKET = os.getenv('DOCKER_SOCKET', 'unix://var/run/docker.sock')
+DOCKER_SOCKET = os.getenv("DOCKER_SOCKET", "unix://var/run/docker.sock")
 
 # DNS default values
-DNS_DOMAIN   = os.getenv('DNS_DOMAIN',   'local')
-DNS_WILDCARD = os.getenv('DNS_WILDCARD', 'false')
+DNS_DOMAIN = os.getenv("DNS_DOMAIN", "local")
+DNS_WILDCARD = os.getenv("DNS_WILDCARD", "false")
 
 # Loadbalancer default values
-LB_DOMAIN = os.getenv('LB_DOMAIN', 'local')
+LB_DOMAIN = os.getenv("LB_DOMAIN", "local")
 
 # HAproxy default values
-HAPROXY_CONFIG_TEMPLATE = os.getenv('HAPROXY_CONFIG_TEMPLATE', '/etc/haproxy/haproxy.cfg')
-HAPROXY_CONFIG_FILE     = os.getenv('HAPROXY_CONFIG_FILE',     '/run/haproxy/haproxy.cfg')
+HAPROXY_CONFIG_TEMPLATE = os.getenv("HAPROXY_CONFIG_TEMPLATE", "/etc/haproxy/haproxy.cfg")
+HAPROXY_CONFIG_FILE = os.getenv("HAPROXY_CONFIG_FILE", "/run/haproxy/haproxy.cfg")
 
 # dnsmasq default values
-DNSMASQ_WILDCARDS_FILE = os.getenv('DNSMASQ_WILDCARDS_FILE', '/run/dnsmasq/conf/docker')
-DNSMASQ_HOSTS_FILE     = os.getenv('DNSMASQ_HOSTS_FILE',     '/run/dnsmasq/hosts/docker')
+DNSMASQ_WILDCARDS_FILE = os.getenv("DNSMASQ_WILDCARDS_FILE", "/run/dnsmasq/conf/docker")
+DNSMASQ_HOSTS_FILE = os.getenv("DNSMASQ_HOSTS_FILE", "/run/dnsmasq/hosts/docker")
+
 
 def get_own_ip_address():
     # get default network interface
     iface = subprocess.check_output(
-        "awk '{ if ($2 == \"00000000\") { print $1; exit; } }' /proc/net/route",
-        shell=True
+        "awk '{ if ($2 == \"00000000\") { print $1; exit; } }' /proc/net/route", shell=True
     )
 
     if not iface:
         raise Exception("Fail to get default network interface")
     else:
-        iface = iface.decode('utf8').split('\n')[0]
+        iface = iface.decode("utf8").split("\n")[0]
 
     # get IP address of default network interface
     ipaddr = subprocess.check_output(
-        "ip addr show dev %s | awk -F'[ \t/]+' '/inet / { print $3; exit; }'" % (iface),
-        shell=True
+        "ip addr show dev %s | awk -F'[ \t/]+' '/inet / { print $3; exit; }'" % (iface), shell=True
     )
 
     if not ipaddr:
         raise Exception("Fail to get interface %s IP address" % (iface))
     else:
-        ipaddr = ipaddr.decode('utf8').split('\n')[0]
+        ipaddr = ipaddr.decode("utf8").split("\n")[0]
 
     return ipaddr
 
+
 def get_process_info():
     return "%s[%d]" % (os.path.basename(sys.argv[0]), os.getpid())
+
 
 def log(msg, level="INFO", hostname=False):
     if hostname:
@@ -66,33 +67,37 @@ def log(msg, level="INFO", hostname=False):
     else:
         print("%s: %-7s %s" % (get_process_info(), "[%s]" % level, msg))
 
+
 def error(msg, hostname=False):
     log(msg, level="ERROR", hostname=hostname)
+
 
 def fatal(msg, hostname=False):
     log(msg, "FATAL", hostname=hostname)
     sys.exit(1)
 
+
 def sighandler(sig, frame):
-    print ("")
+    print("")
     sys.exit(0)
 
+
 class DockerClient(object):
-    def __init__(self, url='unix://var/run/docker.sock'):
-        self.url   = url
-        self.conn  = docker.Client(base_url=self.url)
+    def __init__(self, url="unix://var/run/docker.sock"):
+        self.url = url
+        self.conn = docker.Client(base_url=self.url)
         self.cache = dict()
 
         self.showInformations()
 
     def showInformations(self):
-        docker_infos   = self.conn.info()
+        docker_infos = self.conn.info()
         docker_version = self.conn.version()
 
-        log("Kernel:           %s"   % (docker_infos['KernelVersion']))
-        log("Operating System: %s"   % (docker_infos['OperatingSystem']))
-        log("Docker Version:   %s"   % (docker_version['Version']))
-        log("API Version:      %s\n" % (docker_version['ApiVersion']))
+        log("Kernel:           %s" % (docker_infos["KernelVersion"]))
+        log("Operating System: %s" % (docker_infos["OperatingSystem"]))
+        log("Docker Version:   %s" % (docker_version["Version"]))
+        log("API Version:      %s\n" % (docker_version["ApiVersion"]))
 
     def getContainerData(self, containerid):
         # read data from cache if found
@@ -116,36 +121,36 @@ class DockerClient(object):
 
     def getId(self, data):
         # return container id
-        return data['Id']
+        return data["Id"]
 
     def getName(self, data):
         # return container name
-        return data['Name'].replace('/', '')
+        return data["Name"].replace("/", "")
 
     def getHostname(self, data):
         # return container hostname
-        return data['Config']['Hostname']
+        return data["Config"]["Hostname"]
 
     def getIPAddress(self, data):
         # return container main IP address
 
-        for net in data['NetworkSettings']['Networks']:
-            if net == 'host':
+        for net in data["NetworkSettings"]["Networks"]:
+            if net == "host":
                 return get_own_ip_address()
             else:
-                return data['NetworkSettings']['Networks'][net]['IPAddress']
+                return data["NetworkSettings"]["Networks"][net]["IPAddress"]
 
     def getNetworkName(self, data):
         # return first network name
 
-        for net in data['NetworkSettings']['Networks']:
+        for net in data["NetworkSettings"]["Networks"]:
             return net
 
         return False
 
     def getLabels(self, data):
         # return container's labels
-        return data['Config']['Labels']
+        return data["Config"]["Labels"]
 
     def getLabel(self, data, name, default=False):
         # return container's label 'name'
@@ -157,13 +162,14 @@ class DockerClient(object):
 
         return labels[name]
 
+
 class DockerEventsHandler(object):
     def __init__(self):
         self.docker = DockerClient(DOCKER_SOCKET)
-        self.myid   = self.getMyCid()
-        self.dns    = DnsEntries(self.myid)
-        self.lb     = LoadbalancerEntries(self.myid, self.dns)
-        self.loop   = True
+        self.myid = self.getMyCid()
+        self.dns = DnsEntries(self.myid)
+        self.lb = LoadbalancerEntries(self.myid, self.dns)
+        self.loop = True
 
     def serve(self):
         log("Starting docker events handler")
@@ -180,7 +186,7 @@ class DockerEventsHandler(object):
         while self.loop:
             evts = next(events_generator)
 
-            for evt in evts.decode('utf8').split('\n'):
+            for evt in evts.decode("utf8").split("\n"):
                 if not evt:
                     # We've got an empty string
                     continue
@@ -192,9 +198,9 @@ class DockerEventsHandler(object):
         myip = get_own_ip_address()
 
         for container in self.docker.conn.containers():
-            data      = self.docker.getContainerData(container['Id'])
+            data = self.docker.getContainerData(container["Id"])
             ipaddress = self.docker.getIPAddress(data)
-            hostname  = self.docker.getHostname(data)
+            hostname = self.docker.getHostname(data)
 
             if myip != ipaddress:
                 continue
@@ -202,7 +208,7 @@ class DockerEventsHandler(object):
             if hostname != socket.gethostname():
                 continue
 
-            myid = container['Id']
+            myid = container["Id"]
 
         if not myid:
             fatal("failed to get dalidock container ID (this should not happen, this is a bug)")
@@ -216,9 +222,9 @@ class DockerEventsHandler(object):
         myip = get_own_ip_address()
 
         for container in self.docker.conn.containers():
-            data      = self.docker.getContainerData(container['Id'])
+            data = self.docker.getContainerData(container["Id"])
             ipaddress = self.docker.getIPAddress(data)
-            hostname  = self.docker.getHostname(data)
+            hostname = self.docker.getHostname(data)
 
             if myip != ipaddress:
                 continue
@@ -226,30 +232,30 @@ class DockerEventsHandler(object):
             if hostname != socket.gethostname():
                 continue
 
-            myid = container['Id']
+            myid = container["Id"]
 
         if not myid:
             fatal("failed to get dalidock container ID (this should not happen, this is a bug)")
 
         log("registering dalidock container in DNS")
 
-        self.handleContainer(myid, 'start')
+        self.handleContainer(myid, "start")
 
     def loadAllContainers(self):
         for container in self.docker.conn.containers():
-            self.handleContainer(container['Id'], 'start')
+            self.handleContainer(container["Id"], "start")
 
     def processEvt(self, evt):
         evt = json.loads(evt)
 
-        if 'Type' not in evt.keys() or evt['Type'] != 'container':
+        if "Type" not in evt.keys() or evt["Type"] != "container":
             # this event is useless because not related to container state, skipping (fix for docker 1.10+)
             return
 
-        containerid = evt['id']
-        status      = evt['status']
+        containerid = evt["id"]
+        status = evt["status"]
 
-        if status not in ['start', 'die']:
+        if status not in ["start", "die"]:
             # These events can be dropped as we are not handling them
             return
 
@@ -262,28 +268,33 @@ class DockerEventsHandler(object):
             error("Fail to fetch description of container '%s'" % (containerid))
             return
 
-        cid              = self.docker.getId(data)
-        name             = self.docker.getName(data)
-        hostname         = self.docker.getHostname(data)
-        ipaddress        = self.docker.getIPAddress(data)
-        network          = self.docker.getNetworkName(data)
-        dns_domain       = self.docker.getLabel(data, 'dns.domain',   DNS_DOMAIN)
-        dns_use_wildcard = self.docker.getLabel(data, 'dns.wildcard', DNS_WILDCARD).lower()
-        dns_aliases      = self.docker.getLabel(data, 'dns.aliases',  '')
-        lb_domain        = self.docker.getLabel(data, 'lb.domain',    LB_DOMAIN)
-        lb_http_map      = self.docker.getLabel(data, 'lb.http',      '')
-        if dns_use_wildcard in [ '1', 'true', 'yes' ]:
-            dns_use_wildcard=True
+        cid = self.docker.getId(data)
+        name = self.docker.getName(data)
+        hostname = self.docker.getHostname(data)
+        ipaddress = self.docker.getIPAddress(data)
+        network = self.docker.getNetworkName(data)
+        dns_domain = self.docker.getLabel(data, "dns.domain", DNS_DOMAIN)
+        dns_use_wildcard = self.docker.getLabel(data, "dns.wildcard", DNS_WILDCARD).lower()
+        dns_aliases = self.docker.getLabel(data, "dns.aliases", "")
+        lb_domain = self.docker.getLabel(data, "lb.domain", LB_DOMAIN)
+        lb_http_map = self.docker.getLabel(data, "lb.http", "")
+        if dns_use_wildcard in ["1", "true", "yes"]:
+            dns_use_wildcard = True
         else:
-            dns_use_wildcard=False
+            dns_use_wildcard = False
 
-        log("name=%-10s hostname=%-10s ip=%-15s net=%-10s domain=%-10s use_wildcard=%s" % (name, hostname, ipaddress, network, dns_domain, dns_use_wildcard))
+        log(
+            "name=%-10s hostname=%-10s ip=%-15s net=%-10s domain=%-10s use_wildcard=%s"
+            % (name, hostname, ipaddress, network, dns_domain, dns_use_wildcard)
+        )
 
-        if   status == 'start':
-            self.dns.add(cid, hostname, ipaddress, network, dns_domain, name, dns_aliases, dns_use_wildcard)
+        if status == "start":
+            self.dns.add(
+                cid, hostname, ipaddress, network, dns_domain, name, dns_aliases, dns_use_wildcard
+            )
             self.lb.add(cid, hostname, ipaddress, lb_domain, lb_http_map)
 
-        elif status == 'die':
+        elif status == "die":
             self.dns.remove(cid)
             self.lb.remove(cid)
 
@@ -294,31 +305,32 @@ class DockerEventsHandler(object):
         self.lb.update()
         self.dns.update()
 
+
 class DnsEntries(object):
     def __init__(self, myid):
-        self.myid             = myid
-        self.entries          = dict()
+        self.myid = myid
+        self.entries = dict()
         self.cached_etc_hosts = ""
         self.cached_wildcards = ""
 
     def add(self, cid, hostname, ipaddress, network, domain, name, aliases, use_wildcard):
         entry = {
-            'hostname':     hostname,
-            'ipaddress':    ipaddress,
-            'network':      network,
-            'domain':       domain,
-            'name':         name,
-            'aliases':      [name],
-            'use_wildcard': use_wildcard,
-            'count':        1,
+            "hostname": hostname,
+            "ipaddress": ipaddress,
+            "network": network,
+            "domain": domain,
+            "name": name,
+            "aliases": [name],
+            "use_wildcard": use_wildcard,
+            "count": 1,
         }
 
-        for alias in aliases.split(','):
+        for alias in aliases.split(","):
             if not alias:
                 # empty string
                 continue
 
-            entry['aliases'].append(alias)
+            entry["aliases"].append(alias)
 
         self.entries[cid] = entry
 
@@ -329,18 +341,18 @@ class DnsEntries(object):
             entry = self.entries[fake_cid]
         else:
             entry = {
-                'hostname':     http_host,
-                'ipaddress':    ipaddress,
-                'network':      None,
-                'domain':       domain,
-                'name':         http_host,
-                'aliases':      [http_host],
-                'use_wildcard': use_wildcard,
-                'count':        0,
+                "hostname": http_host,
+                "ipaddress": ipaddress,
+                "network": None,
+                "domain": domain,
+                "name": http_host,
+                "aliases": [http_host],
+                "use_wildcard": use_wildcard,
+                "count": 0,
             }
 
-        entry['count']         += 1
-        self.entries[fake_cid]  = entry
+        entry["count"] += 1
+        self.entries[fake_cid] = entry
 
     def remove(self, cid):
         if cid in self.entries:
@@ -350,14 +362,14 @@ class DnsEntries(object):
         fake_cid = "%s_%s" % (self.myid, http_host)
 
         if fake_cid in self.entries:
-            self.entries[fake_cid]['count'] -= 1
+            self.entries[fake_cid]["count"] -= 1
 
-            if self.entries[fake_cid]['count'] <= 0:
+            if self.entries[fake_cid]["count"] <= 0:
                 del self.entries[fake_cid]
 
     def flush_lb(self):
         fake_cid_prefix = "%s_" % (self.myid)
-        ids             = list(self.entries.keys())
+        ids = list(self.entries.keys())
 
         for entry in ids:
             if entry.startswith(fake_cid_prefix):
@@ -372,44 +384,44 @@ class DnsEntries(object):
         wildcards = ""
 
         for entry in self.entries:
-            data       = self.entries[entry]
-            etc_hosts += "%-15s" % (data['ipaddress'])
-            hosts      = list()
+            data = self.entries[entry]
+            etc_hosts += "%-15s" % (data["ipaddress"])
+            hosts = list()
 
             # put FQDN on top to make dnsmasq properly handle reverse DNS
-            hosts.append("%s.%s" % (data['hostname'], data['domain']))
+            hosts.append("%s.%s" % (data["hostname"], data["domain"]))
 
             # loop on host names
             for host in [
-                    "%s"    % (data['hostname']),
-                    "%s.%s" % (data['name'], data['domain']),
-                    "%s"    % (data['name']),
-                    ]:
+                "%s" % (data["hostname"]),
+                "%s.%s" % (data["name"], data["domain"]),
+                "%s" % (data["name"]),
+            ]:
                 if host not in hosts:
                     hosts.append(host)
 
             # loop on aliases
-            for alias in data['aliases']:
+            for alias in data["aliases"]:
                 # strip starting dots or wildcards
-                for prefix in [ '*.', '.', '*' ]:
-                    alias = alias[alias.startswith(prefix) and len(prefix):]
+                for prefix in ["*.", ".", "*"]:
+                    alias = alias[alias.startswith(prefix) and len(prefix) :]
 
                 # avoid duplication of domain name, like 'alias.domain.domain'
-                if alias.endswith(data['domain']):
-                    alias = alias[:-len(data['domain'])-1]
+                if alias.endswith(data["domain"]):
+                    alias = alias[: -len(data["domain"]) - 1]
 
                 if alias not in hosts:
-                    hosts.append("%s"    % (alias))
-                    hosts.append("%s.%s" % (alias, data['domain']))
+                    hosts.append("%s" % (alias))
+                    hosts.append("%s.%s" % (alias, data["domain"]))
 
             # append generated line
             for host in hosts:
                 etc_hosts += " %s" % (host)
 
             # add wildcard configuration if needed
-            if data['use_wildcard']:
+            if data["use_wildcard"]:
                 for host in hosts:
-                    wildcards += "address=/%s/%s\n" % (host, data['ipaddress'])
+                    wildcards += "address=/%s/%s\n" % (host, data["ipaddress"])
 
             # end of host defintion
             etc_hosts += "\n"
@@ -424,7 +436,7 @@ class DnsEntries(object):
 
             self.cached_etc_hosts = new_etc_hosts
 
-            with open(DNSMASQ_HOSTS_FILE, 'w') as fd:
+            with open(DNSMASQ_HOSTS_FILE, "w") as fd:
                 fd.write(self.cached_etc_hosts)
 
             self.reload()
@@ -434,7 +446,7 @@ class DnsEntries(object):
 
             self.cached_wildcards = new_wildcards
 
-            with open(DNSMASQ_WILDCARDS_FILE, 'w') as fd:
+            with open(DNSMASQ_WILDCARDS_FILE, "w") as fd:
                 fd.write(self.cached_wildcards)
 
             self.restart()
@@ -445,28 +457,29 @@ class DnsEntries(object):
     def restart(self):
         os.system("sv restart dnsmasq")
 
+
 class LoadbalancerEntries(object):
     def __init__(self, myid, dns):
-        self.myid                 = myid
-        self.dns                   = dns
-        self.entries               = dict()
-        self.myip                  = get_own_ip_address()
+        self.myid = myid
+        self.dns = dns
+        self.entries = dict()
+        self.myip = get_own_ip_address()
         self.cached_haproxy_config = ""
 
     def add(self, cid, hostname, ipaddress, domain, http_map):
         entry = {
-            'hostname':     hostname,
-            'ipaddress':    ipaddress,
-            'domain':       domain,
-            'http_entries': list(),
+            "hostname": hostname,
+            "ipaddress": ipaddress,
+            "domain": domain,
+            "http_entries": list(),
         }
 
-        for http_entry in http_map.split(','):
+        for http_entry in http_map.split(","):
             if not http_entry:
                 # empty string
                 continue
 
-            entry['http_entries'].append(http_entry)
+            entry["http_entries"].append(http_entry)
 
         self.entries[cid] = entry
 
@@ -479,12 +492,12 @@ class LoadbalancerEntries(object):
         pp.pprint(self.entries)
 
     def generate(self):
-        http_conf              = dict()
-        haproxy_config         = ""
+        http_conf = dict()
+        haproxy_config = ""
         haproxy_http_frontends = ""
-        haproxy_http_backends  = ""
+        haproxy_http_backends = ""
 
-        with open(HAPROXY_CONFIG_TEMPLATE, 'r') as fd:
+        with open(HAPROXY_CONFIG_TEMPLATE, "r") as fd:
             haproxy_config = fd.read()
 
         self.dns.flush_lb()
@@ -492,39 +505,52 @@ class LoadbalancerEntries(object):
         for entry in self.entries:
             data = self.entries[entry]
 
-            for http_entry in data['http_entries']:
-                http_host, http_port = http_entry.split(':')
-                wildcard             = False
+            for http_entry in data["http_entries"]:
+                http_host, http_port = http_entry.split(":")
+                wildcard = False
 
-                if http_host.startswith('*.'):
+                if http_host.startswith("*."):
                     http_host = http_host[2:]
-                    wildcard  = True
+                    wildcard = True
 
                 if http_host not in http_conf:
-                    http_conf[http_host]             = dict()
-                    http_conf[http_host]['wildcard'] = wildcard
-                    http_conf[http_host]['domain']   = data['domain']
-                    http_conf[http_host]['servers']  = list()
+                    http_conf[http_host] = dict()
+                    http_conf[http_host]["wildcard"] = wildcard
+                    http_conf[http_host]["domain"] = data["domain"]
+                    http_conf[http_host]["servers"] = list()
 
-                http_conf[http_host]['servers'].append({'name': data['hostname'], 'ipaddress': data['ipaddress'], 'port': http_port})
+                http_conf[http_host]["servers"].append(
+                    {"name": data["hostname"], "ipaddress": data["ipaddress"], "port": http_port}
+                )
 
         for http_host in http_conf:
             haproxy_http_frontends += "\t# handle %s\n" % (http_host)
-            haproxy_http_frontends += "\tacl is_%s hdr_reg(host) ^(.*\.|)%s(\..+$|$)\n" % (http_host, http_host)
-            haproxy_http_frontends += "\tuse_backend backend_http_%s if is_%s\n" % (http_host, http_host)
+            haproxy_http_frontends += "\tacl is_%s hdr_reg(host) ^(.*\.|)%s(\..+$|$)\n" % (
+                http_host,
+                http_host,
+            )
+            haproxy_http_frontends += "\tuse_backend backend_http_%s if is_%s\n" % (
+                http_host,
+                http_host,
+            )
             haproxy_http_frontends += "\n"
 
             haproxy_http_backends += "backend backend_http_%s\n" % (http_host)
-            for server in http_conf[http_host]['servers']:
+            for server in http_conf[http_host]["servers"]:
                 haproxy_http_backends += "\tserver %s %s:%s check port %s\n" % (
-                    server['name'],
-                    server['ipaddress'],
-                    server['port'],
-                    server['port'],
+                    server["name"],
+                    server["ipaddress"],
+                    server["port"],
+                    server["port"],
                 )
             haproxy_http_backends += "\n"
 
-            self.dns.add_lb(http_host, self.myip, http_conf[http_host]['domain'], http_conf[http_host]['wildcard'])
+            self.dns.add_lb(
+                http_host,
+                self.myip,
+                http_conf[http_host]["domain"],
+                http_conf[http_host]["wildcard"],
+            )
 
         haproxy_config += haproxy_http_frontends
         haproxy_config += haproxy_http_backends
@@ -539,7 +565,7 @@ class LoadbalancerEntries(object):
 
             self.cached_haproxy_config = new_haproxy_config
 
-            with open(HAPROXY_CONFIG_FILE, 'w') as fd:
+            with open(HAPROXY_CONFIG_FILE, "w") as fd:
                 fd.write(self.cached_haproxy_config)
 
             self.restart()
@@ -547,12 +573,15 @@ class LoadbalancerEntries(object):
     def restart(self):
         os.system("haproxy-start %s" % (HAPROXY_CONFIG_FILE))
 
-signal.signal(signal.SIGINT,  sighandler)
+
+signal.signal(signal.SIGINT, sighandler)
 signal.signal(signal.SIGTERM, sighandler)
+
 
 def main():
     evt_handler = DockerEventsHandler()
     evt_handler.serve()
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()
