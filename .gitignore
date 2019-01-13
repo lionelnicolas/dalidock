@@ -2,3 +2,6 @@
 *.swp
 *.swn
 *.swo
+
+# ignore virtualenv
+.venv
