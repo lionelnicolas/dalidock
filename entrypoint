@@ -12,5 +12,5 @@ if [ ! -z "${1}" ]; then
 
 # start runit services
 else
-	exec tini -g -- /usr/sbin/runsvdir-start
+	exec tini -g -- /usr/bin/runsvdir -P /etc/service
 fi
