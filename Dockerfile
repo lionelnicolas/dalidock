@@ -65,7 +65,6 @@ RUN \
 		ed \
 		gpg \
 		gpg-agent \
-		haproxy \
 		inotify-tools \
 		iproute2 \
 		net-tools \
@@ -74,6 +73,10 @@ RUN \
 		runit \
 		wget \
 		&& \
+	echo "deb http://ppa.launchpad.net/vbernat/haproxy-1.9/ubuntu bionic main"  >>/etc/apt/sources.list.d/haproxy.list && \
+	http_proxy='' apt-key adv --keyserver ipv4.pool.sks-keyservers.net --recv-keys CFFB779AADC995E4F350A060505D97A41C61B9CD && \
+	apt-get update && \
+	apt-get install -y --no-install-recommends haproxy && \
 	apt-get clean && \
 	rm -rf /var/lib/apt/lists && \
 	rm -vf /etc/ssh/ssh_host_*
