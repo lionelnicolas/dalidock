@@ -14,32 +14,32 @@ RUN \
 	echo "deb http://archive.ubuntu.com/ubuntu/ bionic-updates main restricted universe multiverse"  >>/etc/apt/sources.list && \
 	apt-get update && \
 	apt-get install -y --no-install-recommends \
-        build-essential \
-        python3 \
-        python3-dev \
-        python3-venv \
-        python3-wheel \
-        twine \
-        virtualenv \
-        wget \
-        && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists
+		build-essential \
+		python3 \
+		python3-dev \
+		python3-venv \
+		python3-wheel \
+		twine \
+		virtualenv \
+		wget \
+		&& \
+	apt-get clean && \
+	rm -rf /var/lib/apt/lists
 
 # install pip
 RUN \
-    cd /tmp && \
-    wget http://bootstrap.pypa.io/get-pip.py && \
-    python3 ./get-pip.py && \
-    rm -rfv *
+	cd /tmp && \
+	wget http://bootstrap.pypa.io/get-pip.py && \
+	python3 ./get-pip.py && \
+	rm -rfv *
 
 # install dependencies
 COPY requirements.txt /tmp/requirements.txt
 RUN \
-    pip3 install \
-        --requirement /tmp/requirements.txt \
-        --ignore-installed \
-        --target /tmp/packages
+	pip3 install \
+		--requirement /tmp/requirements.txt \
+		--ignore-installed \
+		--target /tmp/packages
 
 FROM ubuntu:bionic-20181204 as base
 
@@ -57,23 +57,23 @@ RUN \
 	echo "deb http://archive.ubuntu.com/ubuntu/ bionic-updates main restricted universe multiverse"  >>/etc/apt/sources.list && \
 	apt-get update && \
 	apt-get install -y --no-install-recommends \
-        bind9-host \
-        ca-certificates \
-        dirmngr \
-        dnsmasq \
-        dnsutils \
-        ed \
+		bind9-host \
+		ca-certificates \
+		dirmngr \
+		dnsmasq \
+		dnsutils \
+		ed \
 		gpg \
 		gpg-agent \
-        haproxy \
-        inotify-tools \
-        iproute2 \
-        net-tools \
-        python3 \
-        python3-distutils \
-        runit \
-        wget \
-        && \
+		haproxy \
+		inotify-tools \
+		iproute2 \
+		net-tools \
+		python3 \
+		python3-distutils \
+		runit \
+		wget \
+		&& \
 	apt-get clean && \
 	rm -rf /var/lib/apt/lists && \
 	rm -vf /etc/ssh/ssh_host_*
