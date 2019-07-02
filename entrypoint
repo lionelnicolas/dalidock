@@ -6,6 +6,11 @@ set -e
 # save environment variables
 export >> /etc/environment
 
+# override nameserver if set
+if [ -n "${UPSTREAM_NAMESERVER:-}" ]; then
+	printf "nameserver ${UPSTREAM_NAMESERVER}" >/etc/resolv.conf
+fi
+
 # a command has been specified, run it
 if [ ! -z "${1}" ]; then
 	exec tini -g -- "$@"
