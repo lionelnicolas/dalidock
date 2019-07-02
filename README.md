@@ -232,4 +232,4 @@ docker build -t lionelnicolas/dalidock .
 This is licensed under the Apache License, Version 2.0. Please see [LICENSE](https://github.com/lionelnicolas/dalidock/blob/master/LICENSE)
 for the full license text.
 
-Copyright 2016-2018 Lionel Nicolas
+Copyright 2016-2019 Lionel Nicolas
