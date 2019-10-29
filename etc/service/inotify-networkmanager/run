@@ -15,7 +15,7 @@ done
 
 resolvconf_file=${DNSMASQ_DATADIR}/resolv.conf.generated
 
-if [ -f /run/NetworkManager/resolv.conf ]; then
+if [ -f /run/NetworkManager/resolv.conf -a -n "$(grep nameserver /run/NetworkManager/resolv.conf 2>/dev/null)" ]; then
 	grep "^nameserver\|^search" /run/NetworkManager/resolv.conf >${resolvconf_file}
 elif [ -n "${UPSTREAM_NAMESERVER:-}" ]; then
 	printf "nameserver ${UPSTREAM_NAMESERVER}\n" >${resolvconf_file}
