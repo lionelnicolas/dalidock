@@ -33,7 +33,12 @@ DNSMASQ_WILDCARDS_FILE = os.getenv("DNSMASQ_WILDCARDS_FILE", "/run/dnsmasq/conf/
 DNSMASQ_HOSTS_FILE = os.getenv("DNSMASQ_HOSTS_FILE", "/run/dnsmasq/hosts/docker")
 
 
-def get_own_ip_address():
+def get_own_ip_address(from_env=False):
+    forced_external_ip = os.getenv("EXTERNAL_IP")
+
+    if forced_external_ip is not None and from_env == True:
+        return forced_external_ip
+
     # get default network interface
     iface = subprocess.check_output(
         "awk '{ if ($2 == \"00000000\") { print $1; exit; } }' /proc/net/route", shell=True
@@ -463,7 +468,7 @@ class LoadbalancerEntries(object):
         self.myid = myid
         self.dns = dns
         self.entries = dict()
-        self.myip = get_own_ip_address()
+        self.myip = get_own_ip_address(from_env=True)
         self.cached_haproxy_config = ""
 
     def add(self, cid, hostname, ipaddress, domain, http_map):
