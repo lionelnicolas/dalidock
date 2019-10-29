@@ -2,7 +2,6 @@
 
 # source environment variables
 . /etc/default-environment
-. /etc/environment
 
 # wait for dnsmasq to be running
 while [ ! -f ${DNSMASQ_DATADIR}/dnsmasq.pid -a -z "$(cat ${DNSMASQ_DATADIR}/dnsmasq.pid)" -a ! -d "/proc/$(cat ${DNSMASQ_DATADIR}/dnsmasq.pid)" ]; do

@@ -2,7 +2,6 @@
 
 # source environment variables
 . /etc/default-environment
-. /etc/environment
 
 # skip ads blocker by default
 if [ "${USE_AD_BLOCKER:-}" != "true" ]; then

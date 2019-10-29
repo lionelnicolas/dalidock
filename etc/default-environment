@@ -1,13 +1,13 @@
 #!/bin/sh
 
-DNSMASQ_USER=dnsmasq
-DNSMASQ_GROUP=nogroup
-DNSMASQ_CONFDIR=/etc/dnsmasq.d
-DNSMASQ_DATADIR=/run/dnsmasq
+export DNSMASQ_USER=${DNSMASQ_USER:-dnsmasq}
+export DNSMASQ_GROUP=${DNSMASQ_GROUP:-nogroup}
+export DNSMASQ_CONFDIR=${DNSMASQ_CONFDIR:-/etc/dnsmasq.d}
+export DNSMASQ_DATADIR=${DNSMASQ_DATADIR:-/run/dnsmasq}
 
-HAPROXY_USER=haproxy
-HAPROXY_GROUP=haproxy
-HAPROXY_CONFDIR=/etc/haproxy
-HAPROXY_DATADIR=/run/haproxy
+export HAPROXY_USER=${HAPROXY_USER:-haproxy}
+export HAPROXY_GROUP=${HAPROXY_GROUP:-haproxy}
+export HAPROXY_CONFDIR=${HAPROXY_CONFDIR:-/etc/haproxy}
+export HAPROXY_DATADIR=${HAPROXY_DATADIR:-/run/haproxy}
 
-USE_AD_BLOCKER=false
+export USE_AD_BLOCKER=${USE_AD_BLOCKER:-false}

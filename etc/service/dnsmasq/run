@@ -2,7 +2,6 @@
 
 # source environment variables
 . /etc/default-environment
-. /etc/environment
 
 # overwrite distribution configuration
 echo -n >/etc/dnsmasq.conf

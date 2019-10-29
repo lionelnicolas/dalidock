@@ -3,9 +3,6 @@
 # exit on failure
 set -e
 
-# save environment variables
-export >> /etc/environment
-
 # override nameserver if set
 if [ -n "${UPSTREAM_NAMESERVER:-}" ]; then
 	printf "nameserver ${UPSTREAM_NAMESERVER}" >/etc/resolv.conf
