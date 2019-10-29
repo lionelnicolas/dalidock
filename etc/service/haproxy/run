@@ -13,7 +13,7 @@ if [ ! -f ${HAPROXY_DATADIR}/haproxy.cfg ]; then
 fi
 
 # generate a default self-signed certificate if certs directory is empty
-if [ -z "$(ls -1 ${HAPROXY_DATADIR}/certs)" ]; then
+if [ -z "$(ls -1 ${HAPROXY_DATADIR}/certs 2>/dev/null)" ]; then
 	# generate SSL key and certificate
 	openssl req \
 		-subj "/C=US/ST=Dalidock/L=Dalidock/O=Dalidock/CN=dalidock.default" \
@@ -28,10 +28,11 @@ if [ -z "$(ls -1 ${HAPROXY_DATADIR}/certs)" ]; then
 	cat ${HAPROXY_DATADIR}/dalidock.default.crt ${HAPROXY_DATADIR}/dalidock.default.key >${HAPROXY_DATADIR}/certs/dalidock.default.pem
 fi
 
-# start haproxy
+# start haproxy (as daemon)
 haproxy \
 	-f ${HAPROXY_DATADIR}/haproxy.cfg \
 	-D \
 	2>&1
 
+# prevent restart loop
 exec sleep INFINITY
