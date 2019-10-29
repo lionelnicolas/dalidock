@@ -25,19 +25,14 @@ fi
 
 echo "generated ${resolvconf_file}"
 
-# if /run/NetworkManager/resolv.conf is not mapped, sleep forever to
-# avoid inotifywait complains
-if [ ! -f /run/NetworkManager/resolv.conf ]; then
-	echo "NetworkManager's resolv.conf is not mapped, sleep forever"
-	exec sleep INFINITY
-fi
+# create /run/NetworkManager directory to monitor it
+while [ "$(inotifywait --quiet --recursive --event MOVED_TO --format '%f' /run/NetworkManager)" != "resolv.conf" ]; do
+	# moved file is not resolv.conf, stay in loop
+	continue
+done
 
 # this command will return on resolv.conf changes by NetworkManager, so
 # this runit service script will be executed again (and dnsmasq will
 # reload upstream nameservers if configuration has changed, as we are
 # not using the '--no-poll' dnsmasq option)
-exec inotifywait \
-	--event close_write \
-	--event move \
-	/run/NetworkManager/resolv.conf \
-	2>&1
+echo "/run/NetworkManager/resolv.conf changes detected, refreshing DNS servers"
