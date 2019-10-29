@@ -12,7 +12,7 @@ fi
 mkdir -p ${DNSMASQ_DATADIR}/hosts
 
 # wait for dnsmasq to be running
-while [ -z "$(pidof dnsmasq 2>/dev/null)" ]; do
+while ! pidof dnsmasq >/dev/null 2>&1; do
 	echo "waiting for dnsmasq to be up ..."
 	sleep .5
 done
