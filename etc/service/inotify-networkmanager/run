@@ -17,6 +17,8 @@ resolvconf_file=${DNSMASQ_DATADIR}/resolv.conf.generated
 
 if [ -f /run/NetworkManager/resolv.conf ]; then
 	grep "^nameserver\|^search" /run/NetworkManager/resolv.conf >${resolvconf_file}
+elif [ -n "${UPSTREAM_NAMESERVER:-}" ]; then
+	printf "nameserver ${UPSTREAM_NAMESERVER}\n" >${resolvconf_file}
 elif [ -f ${DNSMASQ_DATADIR}/resolv.conf.generated ]; then
 	echo "${resolvconf_file} has already been generated from /etc/resolv.conf"
 else
