@@ -313,6 +313,10 @@ class LibvirtEventsHandler(object):
         if str(DOM_EVENTS[event]) in ["Started", "Stopped"]:
             self.handleDomain(dom, str(DOM_EVENTS[event]))
 
+        # if definition is updated while domain is running, emulate 'Started' event
+        elif str(DOM_EVENTS[event]) == "Defined" and dom.state()[0] == libvirt.VIR_DOMAIN_RUNNING:
+            self.handleDomain(dom, "Started")
+
     def errorCallback(self, unused, error):
         # ignore empty metadata errors
         if (error[0] == libvirt.VIR_ERR_NO_DOMAIN_METADATA and error[1] == libvirt.VIR_FROM_DOMAIN):
