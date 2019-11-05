@@ -7,15 +7,22 @@ __license__ = "Apache License Version 2.0"
 
 import docker
 import json
+import libvirt
 import os
 import pprint
 import sys
 import signal
 import socket
 import subprocess
+import time
+import threading
+import xml.etree.ElementTree
 
 # docker default values
 DOCKER_SOCKET = os.getenv("DOCKER_SOCKET", "unix://var/run/docker.sock")
+
+# libvirt default values
+LIBVIRT_SOCKET = os.getenv("LIBVIRT_SOCKET", "/var/run/libvirt/libvirt-sock-ro")
 
 # DNS default values
 DNS_DOMAIN = os.getenv("DNS_DOMAIN", "local")
@@ -85,6 +92,272 @@ def fatal(msg, hostname=False):
 def sighandler(sig, frame):
     print("")
     sys.exit(0)
+
+
+# https://github.com/libvirt/libvirt-python/blob/master/examples/event-test.py#L494
+class Description(object):
+    __slots__ = ("desc", "args")
+
+    def __init__(self, *args, **kwargs):
+        self.desc = kwargs.get("desc")
+        self.args = args
+
+    def __str__(self):  # type: () -> str
+        return self.desc
+
+    def __getitem__(self, item):  # type: (int) -> str
+        try:
+            data = self.args[item]
+        except IndexError:
+            return self.__class__(desc=str(item))
+
+        if isinstance(data, str):
+            return self.__class__(desc=data)
+        elif isinstance(data, (list, tuple)):
+            desc, args = data
+            return self.__class__(*args, desc=desc)
+
+        raise TypeError(args)
+
+
+DOM_EVENTS = Description(
+    ("Defined", ("Added", "Updated", "Renamed", "Snapshot")),
+    ("Undefined", ("Removed", "Renamed")),
+    ("Started", ("Booted", "Migrated", "Restored", "Snapshot", "Wakeup")),
+    (
+        "Suspended",
+        (
+            "Paused",
+            "Migrated",
+            "IOError",
+            "Watchdog",
+            "Restored",
+            "Snapshot",
+            "API error",
+            "Postcopy",
+            "Postcopy failed",
+        ),
+    ),
+    ("Resumed", ("Unpaused", "Migrated", "Snapshot", "Postcopy")),
+    (
+        "Stopped",
+        ("Shutdown", "Destroyed", "Crashed", "Migrated", "Saved", "Failed", "Snapshot", "Daemon"),
+    ),
+    ("Shutdown", ("Finished", "On guest request", "On host request")),
+    ("PMSuspended", ("Memory", "Disk")),
+    ("Crashed", ("Panicked",)),
+)
+
+
+class LibvirtQemuClient(object):
+    def __init__(self, socket="unix://var/run/docker.sock"):
+        self.socket = socket
+        self.conn = libvirt.openReadOnly(name="qemu:///system?socket=%s" % (self.socket))
+
+        self.showInformations()
+
+    def showInformations(self):
+        host_infos = self.conn.getInfo()
+
+        log("----- LIBVIRT INFOS -----")
+        log("Model:                %s" % (host_infos[0]))
+        log("Memory size:          %s MB" % (host_infos[1]))
+        log("Number of CPUs:       %s" % (host_infos[2]))
+        log("MHz of CPUs:          %s" % (host_infos[3]))
+        log("NUMA nodes:           %s" % (host_infos[4]))
+        log("CPU sockets:          %s" % (host_infos[5]))
+        log("CPU cores per socket: %s" % (host_infos[6]))
+        log("CPU threads per core: %s" % (host_infos[7]))
+
+    def getDomain(self, domainid):
+        try:
+            dom = self.conn.lookupByName(domainid)
+
+        except libvirt.libvirtError as e:
+            error("libvirt: %s" % (str(e)))
+            dom = None
+
+        return dom
+
+    def getId(self, dom):
+        # return domain id
+        return dom.ID()
+
+    def getName(self, dom):
+        # return domain name
+        return dom.name()
+
+    def getIPAddress(self, dom):
+        # return domain main IP address
+
+        net_infos = self.getNetworkInfos(dom)
+
+        for network in self.conn.listAllNetworks():
+            if not hasattr(network, "bridgeName") or network.bridgeName() != net_infos.get("iface"):
+                continue
+
+            leases = network.DHCPLeases()
+            for lease in sorted(leases, key=lambda item: item.get("expirytime"), reverse=True):
+                if lease.get("mac") != net_infos.get("mac"):
+                    continue
+
+                return lease.get("ipaddr")
+
+        return None
+
+    def getNetworkInfos(self, dom):
+        # return first network name
+
+        xml_root = xml.etree.ElementTree.fromstring(dom.XMLDesc())
+        xml_iface = xml_root.find(".//interface")
+
+        if xml_iface is None or xml_iface.get("type") != "bridge":
+            return dict()
+
+        mac_addr = xml_iface.find(".//mac").get("address")
+        bridge_iface = xml_iface.find(".//source").get("bridge")
+
+        return {"mac": mac_addr, "iface": bridge_iface}
+
+    def getNetworkMac(self, dom):
+        return self.getNetworkInfos(dom).get("mac")
+
+    def getNetworkIface(self, dom):
+        return self.getNetworkInfos(dom).get("iface")
+
+    def getLabels(self, dom):
+        # dns.domain
+        # dns.wildcard
+        # dns.aliases
+        # lb.domain
+        # lb.http
+
+        try:
+            xml_labels = dom.metadata(
+                type=libvirt.VIR_DOMAIN_METADATA_ELEMENT,
+                uri="http://github.com/lionelnicolas/dalidock",
+                flags=2,
+            )
+        except libvirt.libvirtError:
+            return dict()
+
+        return dict(xml.etree.ElementTree.fromstring(xml_labels).items())
+
+    def getLabel(self, dom, name, default=False):
+        # return container's label 'name'
+
+        labels = self.getLabels(dom)
+
+        if name not in labels:
+            return default
+
+        return labels[name]
+
+
+class LibvirtEventsHandler(object):
+    def __init__(self, dns_entries, lb_entries):
+        # note: event loop need to be registered before opening connection to libvirt
+        libvirt.virEventRegisterDefaultImpl()
+
+        if not os.path.exists(LIBVIRT_SOCKET):
+            self.libvirt = None
+            return
+
+        self.libvirt = LibvirtQemuClient(LIBVIRT_SOCKET)
+        self.dns = dns_entries
+        self.lb = lb_entries
+        self.event_loop_thread = None
+        self.loop = True
+
+    def run(self):
+        if self.libvirt is None:
+            log("Skipping libvirt events handler as %s not found" % (LIBVIRT_SOCKET))
+            return
+
+        log("Starting libvirt events handler")
+
+        self.eventLoopStart()
+        self.libvirt.conn.domainEventRegister(self.eventCallback, None)
+
+        # get all other running containers, then fix/update their network configuration if needed
+        self.loadAllDomains()
+
+        # while self.loop and self.libvirt.conn.isAlive() == 1:
+        #    time.sleep(.1)
+
+    def eventLoopRun(self):
+        while self.loop:
+            libvirt.virEventRunDefaultImpl()
+
+    def eventLoopStart(self):
+        self.event_loop_thread = threading.Thread(target=self.eventLoopRun, name="libvirtEventLoop")
+
+        self.event_loop_thread.setDaemon(True)
+        self.event_loop_thread.start()
+
+    def eventCallback(self, conn, dom, event, detail, opaque):
+        log(
+            "libvirt event: domain %s(%s) got %s (%s)"
+            % (dom.name(), dom.ID(), DOM_EVENTS[event], DOM_EVENTS[event][detail])
+        )
+
+        if str(DOM_EVENTS[event]) in ["Started", "Stopped"]:
+            self.handleDomain(dom, str(DOM_EVENTS[event]))
+
+    def loadAllDomains(self):
+        for dom in self.libvirt.conn.listAllDomains():
+            if dom.state()[0] != libvirt.VIR_DOMAIN_RUNNING:
+                continue
+
+            self.handleDomain(dom, "Started")
+
+    def handleDomain(self, dom, event):
+        cid = "vm-%s" % (self.libvirt.getId(dom))
+        name = self.libvirt.getName(dom)
+        hostname = name
+        ipaddress = self.libvirt.getIPAddress(dom)
+        network = self.libvirt.getNetworkIface(dom)
+        dns_domain = self.libvirt.getLabel(dom, "dns.domain", DNS_DOMAIN)
+        dns_use_wildcard = self.libvirt.getLabel(dom, "dns.wildcard", DNS_WILDCARD).lower()
+        dns_aliases = self.libvirt.getLabel(dom, "dns.aliases", "")
+        lb_domain = self.libvirt.getLabel(dom, "lb.domain", LB_DOMAIN)
+        lb_http_map = self.libvirt.getLabel(dom, "lb.http", "")
+
+        if ipaddress is None:
+            log("Skipping domain %s as no IP address have been detected" % (name))
+            return
+
+        if dns_use_wildcard in ["1", "true", "yes"]:
+            dns_use_wildcard = True
+        else:
+            dns_use_wildcard = False
+
+        log(
+            "name=%-10s hostname=%-10s ip=%-15s net=%-10s domain=%-10s use_wildcard=%s"
+            % (name, hostname, ipaddress, network, dns_domain, dns_use_wildcard)
+        )
+
+        if event == "Started":
+            self.dns.add(
+                cid, hostname, ipaddress, network, dns_domain, name, dns_aliases, dns_use_wildcard
+            )
+            self.lb.add(cid, hostname, ipaddress, lb_domain, lb_http_map)
+
+        elif event == "Stopped":
+            self.dns.remove(cid)
+            self.lb.remove(cid)
+
+        self.lb.update()
+        self.dns.update()
+
+        self.dns.show()
+
+    def stop(self):
+        if self.libvirt is None:
+            return
+
+        log("Stopping libvirt event handler")
+        self.loop = False
 
 
 class DockerClient(object):
@@ -169,11 +442,11 @@ class DockerClient(object):
 
 
 class DockerEventsHandler(object):
-    def __init__(self):
+    def __init__(self, dns_entries, lb_entries):
         self.docker = DockerClient(DOCKER_SOCKET)
         self.myid = self.getMyCid()
-        self.dns = DnsEntries(self.myid)
-        self.lb = LoadbalancerEntries(self.myid, self.dns)
+        self.dns = dns_entries
+        self.lb = lb_entries
         self.loop = True
 
     def serve(self):
@@ -283,6 +556,8 @@ class DockerEventsHandler(object):
         dns_aliases = self.docker.getLabel(data, "dns.aliases", "")
         lb_domain = self.docker.getLabel(data, "lb.domain", LB_DOMAIN)
         lb_http_map = self.docker.getLabel(data, "lb.http", "")
+        lb_tcp_map = self.docker.getLabel(data, "lb.tcp", "")
+
         if dns_use_wildcard in ["1", "true", "yes"]:
             dns_use_wildcard = True
         else:
@@ -310,13 +585,18 @@ class DockerEventsHandler(object):
         self.lb.update()
         self.dns.update()
 
+        self.dns.show()
+
 
 class DnsEntries(object):
-    def __init__(self, myid):
-        self.myid = myid
+    def __init__(self):
+        self.myid = None
         self.entries = dict()
         self.cached_etc_hosts = ""
         self.cached_wildcards = ""
+
+    def setMyId(self, myid):
+        self.myid = myid
 
     def add(self, cid, hostname, ipaddress, network, domain, name, aliases, use_wildcard):
         entry = {
@@ -464,8 +744,7 @@ class DnsEntries(object):
 
 
 class LoadbalancerEntries(object):
-    def __init__(self, myid, dns):
-        self.myid = myid
+    def __init__(self, dns):
         self.dns = dns
         self.entries = dict()
         self.myip = get_own_ip_address(from_env=True)
@@ -584,8 +863,23 @@ signal.signal(signal.SIGTERM, sighandler)
 
 
 def main():
-    evt_handler = DockerEventsHandler()
-    evt_handler.serve()
+    # prepare data models
+    dns_entries = DnsEntries()
+    lb_entries = LoadbalancerEntries(dns_entries)
+
+    # prepare event handlers
+    libvirt_evt_handler = LibvirtEventsHandler(dns_entries, lb_entries)
+    docker_evt_handler = DockerEventsHandler(dns_entries, lb_entries)
+
+    # update myid attribute (gotten from docker client)
+    dns_entries.setMyId(docker_evt_handler.myid)
+
+    # start event handlers
+    libvirt_evt_handler.run()
+    docker_evt_handler.serve()
+
+    # stop libvirt handler
+    libvirt_evt_handler.stop()
 
 
 if __name__ == "__main__":
