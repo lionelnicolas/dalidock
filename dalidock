@@ -174,7 +174,6 @@ class LibvirtQemuClient(object):
             dom = self.conn.lookupByName(domainid)
 
         except libvirt.libvirtError as e:
-            error("libvirt: %s" % (str(e)))
             dom = None
 
         return dom
@@ -259,6 +258,9 @@ class LibvirtEventsHandler(object):
         # note: event loop need to be registered before opening connection to libvirt
         libvirt.virEventRegisterDefaultImpl()
 
+        # register error handler
+        libvirt.registerErrorHandler(self.errorCallback, None)
+
         if not os.path.exists(LIBVIRT_SOCKET):
             self.libvirt = None
             return
@@ -303,6 +305,13 @@ class LibvirtEventsHandler(object):
 
         if str(DOM_EVENTS[event]) in ["Started", "Stopped"]:
             self.handleDomain(dom, str(DOM_EVENTS[event]))
+
+    def errorCallback(self, unused, error):
+        # ignore empty metadata errors
+        if (error[0] == libvirt.VIR_ERR_NO_DOMAIN_METADATA and error[1] == libvirt.VIR_FROM_DOMAIN):
+            return
+
+        log("libvirt error: %s" % (error[2]))
 
     def loadAllDomains(self):
         for dom in self.libvirt.conn.listAllDomains():
