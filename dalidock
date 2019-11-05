@@ -186,21 +186,28 @@ class LibvirtQemuClient(object):
         # return domain name
         return dom.name()
 
-    def getIPAddress(self, dom):
+    def getIPAddress(self, dom, timeout=0):
         # return domain main IP address
 
         net_infos = self.getNetworkInfos(dom)
+        started_at = float(time.time())
 
         for network in self.conn.listAllNetworks():
             if not hasattr(network, "bridgeName") or network.bridgeName() != net_infos.get("iface"):
                 continue
 
-            leases = network.DHCPLeases()
-            for lease in sorted(leases, key=lambda item: item.get("expirytime"), reverse=True):
-                if lease.get("mac") != net_infos.get("mac"):
-                    continue
+            while time.time() < started_at + timeout:
+                leases = network.DHCPLeases()
+                for lease in sorted(leases, key=lambda item: item.get("expirytime"), reverse=True):
+                    if lease.get("mac") != net_infos.get("mac"):
+                        continue
 
-                return lease.get("ipaddr")
+                    log("found domain IP address after %.2f seconds" % (time.time()-started_at))
+
+                    return lease.get("ipaddr")
+
+                # wait for 200ms before re-trying
+                time.sleep(.2)
 
         return None
 
@@ -324,7 +331,7 @@ class LibvirtEventsHandler(object):
         cid = "vm-%s" % (self.libvirt.getId(dom))
         name = self.libvirt.getName(dom)
         hostname = name
-        ipaddress = self.libvirt.getIPAddress(dom)
+        ipaddress = self.libvirt.getIPAddress(dom, timeout=10)
         network = self.libvirt.getNetworkIface(dom)
         dns_domain = self.libvirt.getLabel(dom, "dns.domain", DNS_DOMAIN)
         dns_use_wildcard = self.libvirt.getLabel(dom, "dns.wildcard", DNS_WILDCARD).lower()
