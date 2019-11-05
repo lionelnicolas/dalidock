@@ -15,6 +15,8 @@ RUN \
 	apt-get update && \
 	apt-get install -y --no-install-recommends \
 		build-essential \
+		libvirt-dev \
+		pkg-config \
 		python3 \
 		python3-dev \
 		python3-venv \
@@ -67,6 +69,7 @@ RUN \
 		gpg-agent \
 		inotify-tools \
 		iproute2 \
+		libvirt0 \
 		net-tools \
 		python3 \
 		python3-distutils \
