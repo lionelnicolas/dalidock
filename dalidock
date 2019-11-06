@@ -269,7 +269,7 @@ class LibvirtQemuClient(object):
 
 
 class LibvirtEventsHandler(object):
-    def __init__(self, dns_entries, lb_entries):
+    def __init__(self, dns_entries, lb_entries, config_lock):
         # note: event loop need to be registered before opening connection to libvirt
         libvirt.virEventRegisterDefaultImpl()
 
@@ -283,6 +283,7 @@ class LibvirtEventsHandler(object):
         self.libvirt = LibvirtQemuClient(LIBVIRT_SOCKET)
         self.dns = dns_entries
         self.lb = lb_entries
+        self.config_lock = config_lock
         self.event_loop_thread = None
         self.loop = True
 
@@ -319,11 +320,11 @@ class LibvirtEventsHandler(object):
         )
 
         if str(DOM_EVENTS[event]) in ["Started", "Stopped"]:
-            self.handleDomain(dom, str(DOM_EVENTS[event]))
+            self.handleDomainSafe(dom, str(DOM_EVENTS[event]))
 
         # if definition is updated while domain is running, emulate 'Started' event
         elif str(DOM_EVENTS[event]) == "Defined" and dom.state()[0] == libvirt.VIR_DOMAIN_RUNNING:
-            self.handleDomain(dom, "Started")
+            self.handleDomainSafe(dom, "Started")
 
     def errorCallback(self, unused, error):
         # ignore empty metadata errors
@@ -337,7 +338,12 @@ class LibvirtEventsHandler(object):
             if dom.state()[0] != libvirt.VIR_DOMAIN_RUNNING:
                 continue
 
-            self.handleDomain(dom, "Started")
+            self.handleDomainSafe(dom, "Started")
+
+    def handleDomainSafe(self, dom, event):
+
+        with self.config_lock:
+            self.handleDomain(dom, event)
 
     def handleDomain(self, dom, event):
         cid = "libvirt-qemu-%s" % (self.libvirt.getId(dom))
@@ -470,11 +476,12 @@ class DockerClient(object):
 
 
 class DockerEventsHandler(object):
-    def __init__(self, dns_entries, lb_entries):
+    def __init__(self, dns_entries, lb_entries, config_lock):
         self.docker = DockerClient(DOCKER_SOCKET)
         self.myid = self.getMyCid()
         self.dns = dns_entries
         self.lb = lb_entries
+        self.config_lock = config_lock
         self.loop = True
 
     def serve(self):
@@ -545,11 +552,11 @@ class DockerEventsHandler(object):
 
         log("registering dalidock container in DNS")
 
-        self.handleContainer(myid, "start")
+        self.handleContainerSafe(myid, "start")
 
     def loadAllContainers(self):
         for container in self.docker.conn.containers():
-            self.handleContainer(container["Id"], "start")
+            self.handleContainerSafe(container["Id"], "start")
 
     def processEvt(self, evt):
         evt = json.loads(evt)
@@ -565,7 +572,11 @@ class DockerEventsHandler(object):
             # These events can be dropped as we are not handling them
             return
 
-        self.handleContainer(containerid, status)
+        self.handleContainerSafe(containerid, status)
+
+    def handleContainerSafe(self, containerid, status):
+        with self.config_lock:
+            self.handleContainer(containerid, status)
 
     def handleContainer(self, containerid, status):
         data = self.docker.getContainerData(containerid)
@@ -892,12 +903,13 @@ signal.signal(signal.SIGTERM, sighandler)
 
 def main():
     # prepare data models
+    config_lock = threading.Lock()
     dns_entries = DnsEntries()
     lb_entries = LoadbalancerEntries(dns_entries)
 
     # prepare event handlers
-    libvirt_evt_handler = LibvirtEventsHandler(dns_entries, lb_entries)
-    docker_evt_handler = DockerEventsHandler(dns_entries, lb_entries)
+    libvirt_evt_handler = LibvirtEventsHandler(dns_entries, lb_entries, config_lock)
+    docker_evt_handler = DockerEventsHandler(dns_entries, lb_entries, config_lock)
 
     # update myid attribute (gotten from docker client)
     dns_entries.setMyId(docker_evt_handler.myid)
