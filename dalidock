@@ -341,7 +341,16 @@ class LibvirtEventsHandler(object):
 
             self.handleDomainSafe(dom, "Started")
 
-    def handleDomainSafe(self, dom, event):
+    def handleDomainSafe(self, dom, event, start_thread=True):
+        # re-call in background thread
+        if start_thread:
+            return threading.Thread(
+                target=self.handleDomainSafe,
+                args=(dom, event),
+                kwargs={"start_thread": False},
+                daemon=True,
+            ).start()
+
         # if domain has just been started, wait for IP address to be known before trying to lock
         # config for update (other newly started container/domain may already be ready)
         if event == "Started":
