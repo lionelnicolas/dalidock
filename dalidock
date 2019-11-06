@@ -7,7 +7,6 @@ __license__ = "Apache License Version 2.0"
 
 import json
 import os
-import pprint
 import sys
 import signal
 import socket
@@ -717,8 +716,7 @@ class DnsEntries:
                 del self.entries[entry]
 
     def show(self):
-        pp = pprint.PrettyPrinter(indent=4)
-        pp.pprint(self.entries)
+        print(json.dumps(self.entries, indent=4, sort_keys=True))
 
     def generate(self):
         etc_hosts = ""
@@ -831,8 +829,7 @@ class LoadbalancerEntries:
             del self.entries[cid]
 
     def show(self):
-        pp = pprint.PrettyPrinter(indent=4)
-        pp.pprint(self.entries)
+        print(json.dumps(self.entries, indent=4, sort_keys=True))
 
     def generate(self):
         http_conf = dict()
