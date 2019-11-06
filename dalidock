@@ -186,7 +186,7 @@ class LibvirtQemuClient(object):
         # return domain name
         return dom.name()
 
-    def getIPAddress(self, dom, timeout=0):
+    def getIPAddress(self, dom, timeout=None):
         # return domain main IP address
 
         net_infos = self.getNetworkInfos(dom)
@@ -196,15 +196,23 @@ class LibvirtQemuClient(object):
             if not hasattr(network, "bridgeName") or network.bridgeName() != net_infos.get("iface"):
                 continue
 
-            while time.time() < started_at + timeout:
+            while timeout is None or time.time() < started_at + timeout:
                 leases = network.DHCPLeases()
                 for lease in sorted(leases, key=lambda item: item.get("expirytime"), reverse=True):
                     if lease.get("mac") != net_infos.get("mac"):
                         continue
 
-                    log("found domain IP address after %.2f seconds" % (time.time()-started_at))
+                    if timeout is not None:
+                        log(
+                            "found domain IP address after %.2f seconds"
+                            % (time.time() - started_at)
+                        )
 
                     return lease.get("ipaddr")
+
+                # no timeout set, return after first attempt
+                if timeout is None:
+                    return None
 
                 # wait for 200ms before re-trying
                 time.sleep(.2)
