@@ -23,6 +23,7 @@ DOCKER_SOCKET = os.getenv("DOCKER_SOCKET", "unix://var/run/docker.sock")
 
 # libvirt default values
 LIBVIRT_SOCKET = os.getenv("LIBVIRT_SOCKET", "/var/run/libvirt/libvirt-sock-ro")
+LIBVIRT_IP_TIMEOUT = float(os.getenv("LIBVIRT_IP_TIMEOUT", "30.0"))
 
 # DNS default values
 DNS_DOMAIN = os.getenv("DNS_DOMAIN", "local")
@@ -341,6 +342,11 @@ class LibvirtEventsHandler(object):
             self.handleDomainSafe(dom, "Started")
 
     def handleDomainSafe(self, dom, event):
+        # if domain has just been started, wait for IP address to be known before trying to lock
+        # config for update (other newly started container/domain may already be ready)
+        if event == "Started":
+            log("wait for domain %s DHCP lease to appear" % (self.libvirt.getName(dom)))
+            _ = self.libvirt.getIPAddress(dom, timeout=LIBVIRT_IP_TIMEOUT)
 
         with self.config_lock:
             self.handleDomain(dom, event)
@@ -349,17 +355,13 @@ class LibvirtEventsHandler(object):
         cid = "libvirt-qemu-%s" % (self.libvirt.getId(dom))
         name = self.libvirt.getName(dom)
         hostname = name
-        ipaddress = self.libvirt.getIPAddress(dom, timeout=10)
+        ipaddress = self.libvirt.getIPAddress(dom)
         network = self.libvirt.getNetworkIface(dom)
         dns_domain = self.libvirt.getLabel(dom, "dns.domain", DNS_DOMAIN)
         dns_use_wildcard = self.libvirt.getLabel(dom, "dns.wildcard", DNS_WILDCARD).lower()
         dns_aliases = self.libvirt.getLabel(dom, "dns.aliases", "")
         lb_domain = self.libvirt.getLabel(dom, "lb.domain", LB_DOMAIN)
         lb_http_map = self.libvirt.getLabel(dom, "lb.http", "")
-
-        if ipaddress is None:
-            log("Skipping domain %s as no IP address have been detected" % (name))
-            return
 
         if dns_use_wildcard in ["1", "true", "yes"]:
             dns_use_wildcard = True
@@ -372,6 +374,10 @@ class LibvirtEventsHandler(object):
         )
 
         if event == "Started":
+            if ipaddress is None:
+                log("Skipping domain %s as no IP address have been detected" % (name))
+                return
+
             self.dns.add(
                 cid, hostname, ipaddress, network, dns_domain, name, dns_aliases, dns_use_wildcard
             )
