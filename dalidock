@@ -180,7 +180,7 @@ class LibvirtQemuClient(object):
 
     def getId(self, dom):
         # return domain id
-        return dom.ID()
+        return dom.UUIDString()
 
     def getName(self, dom):
         # return domain name
@@ -332,7 +332,7 @@ class LibvirtEventsHandler(object):
             self.handleDomain(dom, "Started")
 
     def handleDomain(self, dom, event):
-        cid = "vm-%s" % (self.libvirt.getId(dom))
+        cid = "libvirt-qemu-%s" % (self.libvirt.getId(dom))
         name = self.libvirt.getName(dom)
         hostname = name
         ipaddress = self.libvirt.getIPAddress(dom, timeout=10)
