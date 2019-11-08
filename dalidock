@@ -21,7 +21,7 @@ import docker
 DOCKER_SOCKET = os.getenv("DOCKER_SOCKET", "unix://var/run/docker.sock")
 
 # libvirt default values
-LIBVIRT_SOCKET = os.getenv("LIBVIRT_SOCKET", "/var/run/libvirt/libvirt-sock-ro")
+LIBVIRT_SOCKET = os.getenv("LIBVIRT_SOCKET", "/var/run/libvirt/libvirt-sock")
 LIBVIRT_IP_TIMEOUT = float(os.getenv("LIBVIRT_IP_TIMEOUT", "30.0"))
 
 # DNS default values
@@ -148,9 +148,9 @@ DOM_EVENTS = Description(
 
 
 class LibvirtQemuClient:
-    def __init__(self, socket_path="unix://var/run/docker.sock"):
+    def __init__(self, socket_path="/var/run/libvirt/libvirt-sock"):
         self.socket = socket_path
-        self.conn = libvirt.openReadOnly(name="qemu:///system?socket=%s" % (self.socket))
+        self.conn = libvirt.open(name="qemu:///system?socket=%s" % (self.socket))
 
         self.showInformations()
 
@@ -189,6 +189,18 @@ class LibvirtQemuClient:
     def getIPAddress(self, dom, timeout=None):
         # return domain main IP address
 
+        guest_agent = xml.etree.ElementTree.fromstring(dom.XMLDesc()).find(
+            ".//channel/target[@name='org.qemu.guest_agent.0']"
+        )
+
+        if guest_agent is None:
+            return self.getIPAddressFromDhcpLease(dom, timeout=timeout)
+
+        return self.getIPAddressFromGuestAgent(dom, timeout=timeout)
+
+    def getIPAddressFromDhcpLease(self, dom, timeout=None):
+        # return domain main IP address
+
         net_infos = self.getNetworkInfos(dom)
         started_at = float(time.time())
 
@@ -219,17 +231,57 @@ class LibvirtQemuClient:
 
         return None
 
+    def getIPAddressFromGuestAgent(self, dom, timeout=None):
+        # return domain main IP address
+
+        net_infos = self.getNetworkInfos(dom)
+        started_at = float(time.time())
+
+        while timeout is None or time.time() < started_at + timeout:
+            try:
+                iface_addresses = dom.interfaceAddresses(
+                    libvirt.VIR_DOMAIN_INTERFACE_ADDRESSES_SRC_AGENT
+                )
+            except libvirt.libvirtError:
+                iface_addresses = {}
+
+            for iface, data in iface_addresses.items():
+                if data.get("hwaddr") != net_infos.get("mac"):
+                    continue
+
+                for addr in data.get("addrs"):
+                    if addr.get("type") != libvirt.VIR_IP_ADDR_TYPE_IPV4:
+                        continue
+
+                    if timeout is not None:
+                        log(
+                            "found domain IP address after %.2f seconds on guest's %s"
+                            % (time.time() - started_at, iface)
+                        )
+
+                    return addr.get("addr")
+
+            # no timeout set, return after first attempt
+            if timeout is None:
+                return None
+
+            # wait for 200ms before re-trying
+            time.sleep(0.2)
+
+        return None
+
     def getNetworkInfos(self, dom):
         # return first network name
 
         xml_root = xml.etree.ElementTree.fromstring(dom.XMLDesc())
-        xml_iface = xml_root.find(".//interface")
+        xml_iface_src = xml_root.find(".//interface/source")
+        xml_iface_mac = xml_root.find(".//interface/mac")
 
-        if xml_iface is None or xml_iface.get("type") != "bridge":
+        if xml_iface_src is None or xml_iface_mac is None or xml_iface_src.get("bridge") is None:
             return dict()
 
-        mac_addr = xml_iface.find(".//mac").get("address")
-        bridge_iface = xml_iface.find(".//source").get("bridge")
+        mac_addr = xml_iface_mac.get("address")
+        bridge_iface = xml_iface_src.get("bridge")
 
         return {"mac": mac_addr, "iface": bridge_iface}
 
