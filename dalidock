@@ -377,7 +377,7 @@ class LibvirtEventsHandler:
         ):
             return
 
-        log("libvirt error: %s" % (cb_error[2]))
+        log("libvirt error: [%d, %d] %s" % (cb_error[0], cb_error[1], cb_error[2]))
 
     def loadAllDomains(self):
         for dom in self.libvirt.conn.listAllDomains():
