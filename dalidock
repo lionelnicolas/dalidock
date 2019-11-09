@@ -411,6 +411,7 @@ class LibvirtEventsHandler:
                 kwargs={"start_thread": False},
                 daemon=True,
             ).start()
+            return
 
         # if domain has just been started, wait for IP address to be known before trying to lock
         # config for update (other newly started container/domain may already be ready)
