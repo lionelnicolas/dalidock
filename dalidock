@@ -433,6 +433,7 @@ class LibvirtEventsHandler:
         dns_aliases = self.libvirt.getLabel(dom, "dns.aliases", "")
         lb_domain = self.libvirt.getLabel(dom, "lb.domain", LB_DOMAIN)
         lb_http_map = self.libvirt.getLabel(dom, "lb.http", "")
+        lb_tcp_map = self.libvirt.getLabel(dom, "lb.tcp", "")
 
         # pylint: disable=simplifiable-if-statement
         if dns_use_wildcard in ["1", "true", "yes"]:
@@ -453,7 +454,7 @@ class LibvirtEventsHandler:
             self.dns.add(
                 cid, hostname, ipaddress, network, dns_domain, name, dns_aliases, dns_use_wildcard
             )
-            self.lb.add(cid, hostname, ipaddress, lb_domain, lb_http_map)
+            self.lb.add(cid, hostname, ipaddress, lb_domain, lb_http_map, lb_tcp_map)
 
         elif event == "Stopped":
             self.dns.remove(cid)
@@ -696,7 +697,7 @@ class DockerEventsHandler:
             self.dns.add(
                 cid, hostname, ipaddress, network, dns_domain, name, dns_aliases, dns_use_wildcard
             )
-            self.lb.add(cid, hostname, ipaddress, lb_domain, lb_http_map)
+            self.lb.add(cid, hostname, ipaddress, lb_domain, lb_http_map, lb_tcp_map)
 
         elif status == "die":
             self.dns.remove(cid)
@@ -876,12 +877,13 @@ class LoadbalancerEntries:
         self.myip = get_own_ip_address(from_env=True)
         self.cached_haproxy_config = ""
 
-    def add(self, cid, hostname, ipaddress, domain, http_map):
+    def add(self, cid, hostname, ipaddress, domain, http_map, tcp_map):
         entry = {
             "hostname": hostname,
             "ipaddress": ipaddress,
             "domain": domain,
             "http_entries": list(),
+            "tcp_entries": list(),
         }
 
         for http_entry in http_map.split(","):
@@ -890,6 +892,13 @@ class LoadbalancerEntries:
                 continue
 
             entry["http_entries"].append(http_entry)
+
+        for tcp_entry in tcp_map.split(","):
+            if not tcp_entry:
+                # empty string
+                continue
+
+            entry["tcp_entries"].append(tcp_entry)
 
         self.entries[cid] = entry
 
@@ -902,9 +911,12 @@ class LoadbalancerEntries:
 
     def generate(self):
         http_conf = dict()
+        tcp_conf = dict()
         haproxy_config = ""
         haproxy_http_frontends = ""
         haproxy_http_backends = ""
+        haproxy_tcp_frontends = ""
+        haproxy_tcp_backends = ""
 
         with open(HAPROXY_CONFIG_TEMPLATE, "r") as fd:
             haproxy_config = fd.read()
@@ -930,6 +942,36 @@ class LoadbalancerEntries:
 
                 http_conf[http_host]["servers"].append(
                     {"name": data["hostname"], "ipaddress": data["ipaddress"], "port": http_port}
+                )
+
+            for tcp_entry in data["tcp_entries"]:
+                if tcp_entry.count(":") == 1:
+                    tcp_host, tcp_port = tcp_entry.split(":")
+                    tcp_backend_port = tcp_port
+                elif tcp_entry.count(":") == 2:
+                    tcp_host, tcp_port, tcp_backend_port = tcp_entry.split(":")
+                else:
+                    log("Skipping invalid TCP entry %s" % (tcp_entry))
+
+                wildcard = False
+
+                if tcp_host.startswith("*."):
+                    tcp_host = tcp_host[2:]
+                    wildcard = True
+
+                if tcp_port not in tcp_conf:
+                    tcp_conf[tcp_port] = dict()
+                    tcp_conf[tcp_port]["wildcard"] = wildcard
+                    tcp_conf[tcp_port]["tcp_host"] = tcp_host
+                    tcp_conf[tcp_port]["domain"] = data["domain"]
+                    tcp_conf[tcp_port]["servers"] = list()
+
+                tcp_conf[tcp_port]["servers"].append(
+                    {
+                        "name": data["hostname"],
+                        "ipaddress": data["ipaddress"],
+                        "port": tcp_backend_port,
+                    }
                 )
 
         for http_host in http_conf:
@@ -961,8 +1003,47 @@ class LoadbalancerEntries:
                 http_conf[http_host]["wildcard"],
             )
 
+        for tcp_port in tcp_conf:
+            haproxy_tcp_frontends += "frontend frontend_tcp_%s_%s\n" % (
+                tcp_conf[tcp_port]["tcp_host"],
+                tcp_port,
+            )
+            haproxy_tcp_frontends += "\tbind *:%s\n" % (tcp_port)
+            haproxy_tcp_frontends += "\tmode tcp\n"
+            haproxy_tcp_frontends += "\toption tcplog\n"
+            haproxy_tcp_frontends += "\tuse_backend backend_tcp_%s_%s\n" % (
+                tcp_conf[tcp_port]["tcp_host"],
+                tcp_port,
+            )
+            haproxy_tcp_frontends += "\n"
+
+            haproxy_tcp_backends += "backend backend_tcp_%s_%s\n" % (
+                tcp_conf[tcp_port]["tcp_host"],
+                tcp_port,
+            )
+            haproxy_tcp_backends += "\tmode tcp\n"
+            haproxy_tcp_backends += "\tbalance roundrobin\n"
+            for server in tcp_conf[tcp_port]["servers"]:
+                haproxy_tcp_backends += "\tserver %s %s:%s check port %s\n" % (
+                    server["name"],
+                    server["ipaddress"],
+                    server["port"],
+                    server["port"],
+                )
+            haproxy_tcp_backends += "\n"
+
+            self.dns.add_lb(
+                tcp_conf[tcp_port]["tcp_host"],
+                self.myip,
+                tcp_conf[tcp_port]["domain"],
+                tcp_conf[tcp_port]["wildcard"],
+            )
+
         haproxy_config += haproxy_http_frontends
         haproxy_config += haproxy_http_backends
+
+        haproxy_config += haproxy_tcp_frontends
+        haproxy_config += haproxy_tcp_backends
 
         return haproxy_config
 
