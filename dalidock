@@ -377,6 +377,14 @@ class LibvirtEventsHandler:
         ):
             return
 
+        # ignore invalid operation errors (caused when trying to get IP on domain shutdown)
+        # pylint: disable=bad-continuation
+        if (
+            cb_error[0] == libvirt.VIR_ERR_OPERATION_INVALID
+            and cb_error[1] == libvirt.VIR_FROM_QEMU
+        ):
+            return
+
         log("libvirt error: [%d, %d] %s" % (cb_error[0], cb_error[1], cb_error[2]))
 
     def loadAllDomains(self):
