@@ -6,6 +6,10 @@
  * load balancer, with `haproxy`
  * service discovery, with the `dalidock` python script
 
+Services can be discovered from:
+
+ * docker containers
+ * libvirt virtual machines
 
 ## Usage
 
@@ -13,14 +17,17 @@
 
 `dalidock` can be configured using environment variables:
 
-| Variable        | Default | Description                                               |
-|-----------------|---------|-----------------------------------------------------------|
-| `DNS_WILDCARD ` | `false` | Enable DNS wildcard records by default                    |
-| `DNS_DOMAIN`    | `local` | Domain to append to DNS records to register               |
-| `LB_DOMAIN`     | `local` | Domain to append to reverse-proxy DNS records to register |
-| `USE_AD_BLOCKER`| `false` | Override hosts using https://github.com/StevenBlack/hosts |
+| Variable             | Default                         | Description                                               |
+|----------------------|---------------------------------|-----------------------------------------------------------|
+| `DNS_WILDCARD `      | `false`                         | Enable DNS wildcard records by default                    |
+| `DNS_DOMAIN`         | `local`                         | Domain to append to DNS records to register               |
+| `LB_DOMAIN`          | `local`                         | Domain to append to reverse-proxy DNS records to register |
+| `USE_AD_BLOCKER`     | `false`                         | Override hosts using https://github.com/StevenBlack/hosts |
+| `DOCKER_SOCKET`      | `unix://var/run/docker.sock`    | Docker daemon socket                                      |
+| `LIBVIRT_SOCKET`     | `/var/run/libvirt/libvirt-sock` | Libvirt daemon socket                                     |
+| `LIBVIRT_IP_TIMEOUT` | `30.0`                          | Timeout for dalidock to detect a VM's IP address          |
 
-```shell=/bin/sh
+```sh
 docker run \
     --detach \
     --name dalidock \
@@ -217,6 +224,63 @@ tomcat.frontend.srv.        0   IN   A   172.17.0.2
 ```
 
 Please note that `lb.http` label can take comma-separated list of `HOST:PORT`.
+
+## Register libvirt-based virtual machines
+
+### Prerequisites
+
+You'll need to ensure that `dalidock` has access to the libvirt daemon socket, by adding
+that volume mapping when starting the container:
+
+```
+--volume /var/run/libvirt:/var/run/libvirt:ro
+```
+
+### IP address detection
+
+`dalidock` will try to detect the VM's IP address when the `Started` event is detected. If no IP
+address is found after `LIBVIRT_IP_TIMEOUT`, then the VM will be ignored.
+
+Please note that this detection will only work if either:
+
+ 1. VM primary network interface is configured as DHCP, and is using libvirt-managed DHCP
+    server (`dnsmasq`)
+ 1. [Qemu guest agent](https://wiki.libvirt.org/page/Qemu_guest_agent) is enabled in libvirt,
+    and running in the VM
+
+As soon as the IP address is detected, the following DNS record will be available:
+
+```
+${VM_NAME}.${DNS_DOMAIN}.   0   IN   A   ${VM_IP_ADDRESS}
+```
+
+### Labels
+
+Libvirt doesn't have labels, so `dalidock` use [metadata](https://libvirt.org/formatdomain.html#elementsMetadata)
+instead, which needs to be set in the virtual machine XML description. This can be achieved
+by editing the XML with `virsh edit my-vm-to-discover`, or by using the `virsh metadata` command:
+
+With libvirt, `dalidock` works using the same labels as for [containers](#register-containers).
+
+For example, to enable wildcard DNS on a virtual machine, you can use:
+
+```sh
+virsh metadata my-vm-to-discover \
+	--config \
+	--uri http://github.com/lionelnicolas/dalidock \
+	--key dalidock \
+	--set '<labels dns.wildcard="true"/>'
+```
+
+Or to add reverse-proxy entries:
+
+```sh
+virsh metadata my-vm-to-discover \
+	--config \
+	--uri http://github.com/lionelnicolas/dalidock \
+	--key dalidock \
+	--set '<labels lb.http="tomcat:8080" lb.domain="frontend.srv"/>'
+```
 
 ## Build
 
