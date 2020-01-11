@@ -2,9 +2,9 @@
 
 `dalidock` is a container providing the following services:
 
- * DNS server, with `dnsmasq`
- * load balancer, with `haproxy`
- * service discovery, with the `dalidock` python script
+ * DNS server, using `dnsmasq`
+ * HTTP and TCP load balancer, using `haproxy`
+ * service discovery, using the `dalidock` daemon
 
 Services can be discovered from:
 
@@ -172,7 +172,7 @@ asdfgh.my.local.env.      0   IN   A   172.17.0.7
 7.0.17.172.in-addr.arpa.  0   IN   PTR asdfgh.my.local.env.
 ```
 
-### Add a reverse-proxy entry in haproxy
+### Add an HTTP reverse-proxy entry in haproxy
 
 ```shell=/bin/sh
 docker run \
@@ -196,9 +196,12 @@ tomcat.my.local.env.        0   IN   A   172.17.0.2
 7.0.17.172.in-addr.arpa.    0   IN   PTR tomcat-server.my.local.env.
 ```
 
-Please note that `lb.http` label can take comma-separated list of `HOST:PORT`.
+If you start another container with label `lb.http=tomcat:8080`, traffic will be balanced to
+both containers (`dalidock` will simply add the new container to the existing haproxy backend).
 
-### Add a reverse-proxy entry in haproxy (and override DNS domain)
+`lb.http` label can take comma-separated list of `HOST:PORT`.
+
+### Add an HTTP reverse-proxy entry in haproxy (and override DNS domain)
 
 ```shell=/bin/sh
 docker run \
@@ -223,7 +226,38 @@ tomcat.frontend.srv.        0   IN   A   172.17.0.2
 7.0.17.172.in-addr.arpa.    0   IN   PTR tomcat-server.my.local.env.
 ```
 
-Please note that `lb.http` label can take comma-separated list of `HOST:PORT`.
+`lb.http` label can take comma-separated list of `HOST:PORT`.
+
+### Add a TCP frontend in haproxy
+
+```shell=/bin/sh
+docker run \
+    -it \
+    --name redis-server \
+    --hostname redis-server \
+    --label lb.tcp=redis:1234:6379 \
+    --label lb.domain=data.srv \
+    redis
+```
+
+This will create a TCP haproxy frontend listening on port 1234, and redirect traffic to port 6379
+of the `redis-server` container.
+
+Then, the following DNS records will be available:
+
+```
+redis-server.               0   IN   A   172.17.0.7
+redis-server.my.local.env.  0   IN   A   172.17.0.7
+redis.                      0   IN   A   172.17.0.2
+redis.data.srv.             0   IN   A   172.17.0.2
+7.0.17.172.in-addr.arpa.    0   IN   PTR redis-server.my.local.env.
+```
+
+If you start another container with label `lb.tcp=redis:1234:6379`, traffic will be balanced to
+both containers (`dalidock` will simply add the new container to the existing haproxy backend).
+
+`lb.tcp` label can take comma-separated list of `HOST:FRONTEND_PORT:BACKEND_PORT`.
+
 
 ## Register libvirt-based virtual machines
 
