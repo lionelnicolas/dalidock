@@ -11,6 +11,28 @@ Services can be discovered from:
  * docker containers
  * libvirt virtual machines
 
+## Table of Contents
+
+ * [Usage](#usage)
+    * [Run the container](#run-the-container)
+    * [Make your host uses dalidock as a DNS server](#make-your-host-uses-dalidock-as-a-dns-server)
+    * [Uses NetworkManager's data for upstream DNS servers](#uses-networkmanagers-data-for-upstream-dns-servers)
+ * [Supported labels](#supported-labels)
+ * [Register containers](#register-containers)
+    * [Default values](#default-values)
+    * [Override DNS domain](#override-dns-domain)
+    * [Add DNS aliases](#add-dns-aliases)
+    * [Enable wildcard DNS](#enable-wildcard-dns)
+    * [Add an HTTP reverse-proxy entry in haproxy](#add-an-http-reverse-proxy-entry-in-haproxy)
+    * [Add an HTTP reverse-proxy entry in haproxy (and override DNS domain)](#add-an-http-reverse-proxy-entry-in-haproxy-and-override-dns-domain)
+    * [Add a TCP frontend in haproxy](#add-a-tcp-frontend-in-haproxy)
+ * [Register libvirt-based virtual machines](#register-libvirt-based-virtual-machines)
+    * [Prerequisites](#prerequisites)
+    * [IP address detection](#ip-address-detection)
+    * [Labels](#labels)
+ * [Build](#build)
+ * [License](#license)
+
 ## Usage
 
 ### Run the container
