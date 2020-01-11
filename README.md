@@ -19,7 +19,7 @@ Services can be discovered from:
 
 | Variable             | Default                         | Description                                               |
 |----------------------|---------------------------------|-----------------------------------------------------------|
-| `DNS_WILDCARD `      | `false`                         | Enable DNS wildcard records by default                    |
+| `DNS_WILDCARD`       | `false`                         | Enable DNS wildcard records by default                    |
 | `DNS_DOMAIN`         | `local`                         | Domain to append to DNS records to register               |
 | `LB_DOMAIN`          | `local`                         | Domain to append to reverse-proxy DNS records to register |
 | `USE_AD_BLOCKER`     | `false`                         | Override hosts using https://github.com/StevenBlack/hosts |
@@ -72,6 +72,20 @@ If you want to use that feature, you'll just need to map this directory when sta
     --volume /run/NetworkManager:/run/NetworkManager:ro
 ```
 
+## Supported labels
+
+`dalidock` use labels to configure DNS and load balancing.
+
+| Label          | Value format                                   | Description                                            |
+|----------------|------------------------------------------------|--------------------------------------------------------|
+| `dns.wildcard` | `true|false`                                   | Enable wildcard for created DNS records                |
+| `dns.domain`   | `my.domain`                                    | Override domain to append to created DNS records       |
+| `dns.aliases`  | `server-alias1,other-hostname`                 | Add DNS aliases to created hostname DNS record         |
+| `lb.domain`    | `my.loadbalanced.domain`                       | Override domain to append to load-balancer DNS records |
+| `lb.http`      | `${HOSTNAME}:${BACKEND_PORT}`                  | Add HTTP reverse-proxy entry to haproxy                |
+| `lb.tcp`       | `${HOSTNAME}:${FRONTEND_PORT}:${BACKEND_PORT}` | Add TCP frontend entry to haproxy                      |
+
+See [examples](#add-dns-aliases) below for more explanations.
 
 ## Register containers
 
@@ -294,7 +308,7 @@ Libvirt doesn't have labels, so `dalidock` use [metadata](https://libvirt.org/fo
 instead, which needs to be set in the virtual machine XML description. This can be achieved
 by editing the XML with `virsh edit my-vm-to-discover`, or by using the `virsh metadata` command:
 
-With libvirt, `dalidock` works using the same labels as for [containers](#register-containers).
+With libvirt, `dalidock` works using the same labels as for [containers](#supported-labels).
 
 For example, to enable wildcard DNS on a virtual machine, you can use:
 
