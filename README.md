@@ -101,7 +101,7 @@ If you want to use that feature, you'll just need to map this directory when sta
 
 | Label          | Value format                                   | Description                                            |
 |----------------|------------------------------------------------|--------------------------------------------------------|
-| `dns.wildcard` | `true|false`                                   | Enable wildcard for created DNS records                |
+| `dns.wildcard` | `true`, `false`                                | Enable wildcard for created DNS records                |
 | `dns.domain`   | `my.domain`                                    | Override domain to append to created DNS records       |
 | `dns.aliases`  | `server-alias1,other-hostname`                 | Add DNS aliases to created hostname DNS record         |
 | `lb.domain`    | `my.loadbalanced.domain`                       | Override domain to append to load-balancer DNS records |
