@@ -572,14 +572,28 @@ class DockerClient:
 
 class DockerEventsHandler:
     def __init__(self, dns_entries, lb_entries, config_lock):
-        self.docker = DockerClient(DOCKER_SOCKET)
-        self.myid = self.getMyCid()
+        if not os.path.exists(DOCKER_SOCKET):
+            self.docker = None
+            self.myid = "dalidock"
+
+        else:
+            self.docker = DockerClient(DOCKER_SOCKET)
+            self.myid = self.getMyCid()
+
         self.dns = dns_entries
         self.lb = lb_entries
         self.config_lock = config_lock
         self.loop = True
 
     def serve(self):
+        if self.docker is None:
+            log("Skipping docker events handler as %s not found" % (DOCKER_SOCKET))
+
+            while self.loop:
+                time.sleep(1)
+
+            return
+
         log("Starting docker events handler")
 
         # register current dalidock container (which will be used later by loadbalancer)
