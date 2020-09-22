@@ -95,6 +95,23 @@ If you want to use that feature, you'll just need to map this directory when sta
     --volume /run/NetworkManager:/run/NetworkManager:ro
 ```
 
+### Custom SSL certificates
+
+Embedded `haproxy` load balancer is loading SSL certificates from `/run/haproxy/certs`. If that
+directory is empty or non-existing, the container's entrypoint will generate a self-signed one to
+make `haproxy` able to listen on SSL.
+
+If you want to use your own certificates, you could map that directory like:
+
+
+```shell=/bin/sh
+    --volume /opt/ssl/pems:/run/haproxy/certs
+```
+
+Files contained in that directory must be in the PEM format.
+
+See https://www.haproxy.com/blog/haproxy-ssl-termination/ for more information.
+
 ## Supported labels
 
 `dalidock` use labels to configure DNS and load balancing.
