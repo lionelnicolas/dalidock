@@ -9,6 +9,7 @@ import json
 import os
 import sys
 import signal
+import re
 import socket
 import subprocess
 import time
@@ -38,6 +39,11 @@ HAPROXY_CONFIG_FILE = os.getenv("HAPROXY_CONFIG_FILE", "/run/haproxy/haproxy.cfg
 # dnsmasq default values
 DNSMASQ_WILDCARDS_FILE = os.getenv("DNSMASQ_WILDCARDS_FILE", "/run/dnsmasq/conf/docker")
 DNSMASQ_HOSTS_FILE = os.getenv("DNSMASQ_HOSTS_FILE", "/run/dnsmasq/hosts/docker")
+
+# validation regexes
+RE_LABEL_HTTP = re.compile("^([^:]+):([0-9]+)$")
+RE_LABEL_TCP1 = re.compile("^([^:]+):([0-9]+)$")
+RE_LABEL_TCP2 = re.compile("^([^:]+):([0-9]+):([0-9]+)$")
 
 
 def get_own_ip_address(from_env=False):
@@ -943,7 +949,13 @@ class LoadbalancerEntries:
             data = self.entries[entry]
 
             for http_entry in data["http_entries"]:
-                http_host, http_port = http_entry.split(":")
+                match = RE_LABEL_HTTP.match(http_entry)
+
+                if match is None:
+                    log("Skipping invalid HTTP entry %s" % (http_entry))
+                    continue
+
+                http_host, http_port = match.groups()
                 wildcard = False
 
                 if http_host.startswith("*."):
@@ -961,13 +973,19 @@ class LoadbalancerEntries:
                 )
 
             for tcp_entry in data["tcp_entries"]:
-                if tcp_entry.count(":") == 1:
-                    tcp_host, tcp_port = tcp_entry.split(":")
+                match1 = RE_LABEL_TCP1.match(tcp_entry)
+                match2 = RE_LABEL_TCP2.match(tcp_entry)
+
+                if match1 is not None:
+                    tcp_host, tcp_port = match1.groups()
                     tcp_backend_port = tcp_port
-                elif tcp_entry.count(":") == 2:
-                    tcp_host, tcp_port, tcp_backend_port = tcp_entry.split(":")
+
+                elif match2 is not None:
+                    tcp_host, tcp_port, tcp_backend_port = match2.groups()
+
                 else:
                     log("Skipping invalid TCP entry %s" % (tcp_entry))
+                    continue
 
                 wildcard = False
 
