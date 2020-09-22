@@ -255,7 +255,10 @@ class LibvirtQemuClient:
                 if data.get("hwaddr") != net_infos.get("mac"):
                     continue
 
-                for addr in data.get("addrs"):
+                # if 'addrs' element is None, use empty list
+                addresses = data.get("addrs") or list()
+
+                for addr in addresses:
                     if addr.get("type") != libvirt.VIR_IP_ADDR_TYPE_IPV4:
                         continue
 
