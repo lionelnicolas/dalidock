@@ -1,2 +1,2 @@
 docker-py==1.10.6
-libvirt-python==5.7.0
+libvirt-python==6.7.0
