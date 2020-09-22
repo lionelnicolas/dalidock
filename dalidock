@@ -795,18 +795,24 @@ class DnsEntries:
         format_str = "%-20s  %-20s  %-15s  %-10s  %-20s  %-8s  %s"
 
         log("")
-        log(format_str % ("Name", "Hostname", "IP address", "Network", "Domain", "Wildcard", "Aliases"))
+        log(
+            format_str
+            % ("Name", "Hostname", "IP address", "Network", "Domain", "Wildcard", "Aliases")
+        )
 
         for _, entry in self.entries.items():
-            log(format_str % (
-                entry.get("name"),
-                entry.get("hostname"),
-                entry.get("ipaddress"),
-                entry.get("network"),
-                entry.get("domain"),
-                entry.get("use_wildcard"),
-                ",".join(entry.get("aliases")),
-            ))
+            log(
+                format_str
+                % (
+                    entry.get("name"),
+                    entry.get("hostname"),
+                    entry.get("ipaddress"),
+                    entry.get("network"),
+                    entry.get("domain"),
+                    entry.get("use_wildcard"),
+                    ",".join(entry.get("aliases")),
+                )
+            )
 
         log("")
 

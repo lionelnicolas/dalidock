@@ -1,5 +1,5 @@
 {
-	"python.pythonPath": "${workspaceFolder}/.venv/bin/python",
+	"python.pythonPath": ".venv/bin/python",
 	"python.formatting.provider": "black",
 	"files.trimTrailingWhitespace": true,
 	"python.analysis.openFilesOnly": false,
