@@ -45,7 +45,7 @@ Services can be discovered from:
 | `DNS_DOMAIN`          | `local`                         | Domain to append to DNS records to register               |
 | `LB_DOMAIN`           | `local`                         | Domain to append to reverse-proxy DNS records to register |
 | `USE_AD_BLOCKER`      | `false`                         | Override hosts using https://github.com/StevenBlack/hosts |
-| `DOCKER_SOCKET`       | `unix://var/run/docker.sock`    | Docker daemon socket                                      |
+| `DOCKER_SOCKET`       | `unix:///var/run/docker.sock`   | Docker daemon socket                                      |
 | `LIBVIRT_SOCKET`      | `/var/run/libvirt/libvirt-sock` | Libvirt daemon socket                                     |
 | `LIBVIRT_IP_TIMEOUT`  | `30.0`                          | Timeout for dalidock to detect a VM's IP address          |
 | `UPSTREAM_NAMESERVER` | none                            | Nameserver to use when NetworkManager config is empty     |

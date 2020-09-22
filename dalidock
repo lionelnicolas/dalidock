@@ -19,7 +19,7 @@ import libvirt
 import docker
 
 # docker default values
-DOCKER_SOCKET = os.getenv("DOCKER_SOCKET", "unix://var/run/docker.sock")
+DOCKER_SOCKET = os.getenv("DOCKER_SOCKET", "unix:///var/run/docker.sock")
 
 # libvirt default values
 LIBVIRT_SOCKET = os.getenv("LIBVIRT_SOCKET", "/var/run/libvirt/libvirt-sock")
@@ -484,7 +484,7 @@ class LibvirtEventsHandler:
 
 
 class DockerClient:
-    def __init__(self, url="unix://var/run/docker.sock"):
+    def __init__(self, url="unix:///var/run/docker.sock"):
         self.url = url
         self.conn = docker.Client(base_url=self.url)
         self.cache = dict()
@@ -572,7 +572,7 @@ class DockerClient:
 
 class DockerEventsHandler:
     def __init__(self, dns_entries, lb_entries, config_lock):
-        if not os.path.exists(DOCKER_SOCKET):
+        if not os.path.exists(DOCKER_SOCKET.replace("unix://", "")):
             self.docker = None
             self.myid = "dalidock"
 
