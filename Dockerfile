@@ -77,7 +77,7 @@ RUN \
 		wget \
 		&& \
 	echo "deb http://ppa.launchpad.net/vbernat/haproxy-2.2/ubuntu bionic main"  >>/etc/apt/sources.list.d/haproxy.list && \
-	http_proxy='' apt-key adv --keyserver ipv4.pool.sks-keyservers.net --recv-keys CFFB779AADC995E4F350A060505D97A41C61B9CD && \
+	http_proxy='' apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys CFFB779AADC995E4F350A060505D97A41C61B9CD && \
 	apt-get update && \
 	apt-get install -y --no-install-recommends haproxy && \
 	apt-get clean && \
@@ -87,7 +87,7 @@ RUN \
 # install tini
 RUN \
 	TINI_VERSION=v0.18.0 && \
-	http_proxy='' gpg --keyserver ipv4.pool.sks-keyservers.net --recv-keys 0527A9B7 && \
+	http_proxy='' gpg --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys 0527A9B7 && \
 	wget -O/usr/bin/tini     "https://github.com/krallin/tini/releases/download/${TINI_VERSION}/tini" && \
 	wget -O/usr/bin/tini.asc "https://github.com/krallin/tini/releases/download/${TINI_VERSION}/tini.asc" && \
 	gpg --verify /usr/bin/tini.asc && \
