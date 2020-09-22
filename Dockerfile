@@ -1,4 +1,4 @@
-FROM ubuntu:bionic-20191010 as python-build
+FROM ubuntu:bionic-20200903 as python-build
 
 # environment variables
 ENV \
@@ -43,7 +43,7 @@ RUN \
 		--ignore-installed \
 		--target /tmp/packages
 
-FROM ubuntu:bionic-20191010 as base
+FROM ubuntu:bionic-20200903 as base
 
 # environment variables
 ENV \
