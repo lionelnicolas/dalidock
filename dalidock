@@ -200,8 +200,10 @@ class LibvirtQemuClient:
         )
 
         if guest_agent is None:
+            log("wait for domain %s DHCP lease to appear" % (dom.name()))
             return self.getIPAddressFromDhcpLease(dom, timeout=timeout)
 
+        log("wait for domain %s QEMU guest agent to reply" % (dom.name()))
         return self.getIPAddressFromGuestAgent(dom, timeout=timeout)
 
     def getIPAddressFromDhcpLease(self, dom, timeout=None):
@@ -425,7 +427,6 @@ class LibvirtEventsHandler:
         # if domain has just been started, wait for IP address to be known before trying to lock
         # config for update (other newly started container/domain may already be ready)
         if event == "Started":
-            log("wait for domain %s DHCP lease to appear" % (self.libvirt.getName(dom)))
             _ = self.libvirt.getIPAddress(dom, timeout=LIBVIRT_IP_TIMEOUT)
 
         with self.config_lock:
