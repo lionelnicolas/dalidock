@@ -1,4 +1,4 @@
-FROM ubuntu:bionic-20200921 as python-build
+FROM ubuntu:focal-20210713 as python-build
 
 # environment variables
 ENV \
@@ -9,9 +9,9 @@ ENV \
 
 # install packages
 RUN \
-	echo "deb http://archive.ubuntu.com/ubuntu/ bionic main restricted universe multiverse"           >/etc/apt/sources.list && \
-	echo "deb http://security.ubuntu.com/ubuntu bionic-security main restricted universe multiverse" >>/etc/apt/sources.list && \
-	echo "deb http://archive.ubuntu.com/ubuntu/ bionic-updates main restricted universe multiverse"  >>/etc/apt/sources.list && \
+	echo "deb http://archive.ubuntu.com/ubuntu/ focal main restricted universe multiverse"           >/etc/apt/sources.list && \
+	echo "deb http://security.ubuntu.com/ubuntu focal-security main restricted universe multiverse" >>/etc/apt/sources.list && \
+	echo "deb http://archive.ubuntu.com/ubuntu/ focal-updates main restricted universe multiverse"  >>/etc/apt/sources.list && \
 	apt-get update && \
 	apt-get install -y --no-install-recommends \
 		build-essential \
@@ -43,7 +43,7 @@ RUN \
 		--ignore-installed \
 		--target /tmp/packages
 
-FROM ubuntu:bionic-20200921 as base
+FROM ubuntu:focal-20210713 as base
 
 # environment variables
 ENV \
@@ -54,9 +54,9 @@ ENV \
 
 # install packages
 RUN \
-	echo "deb http://archive.ubuntu.com/ubuntu/ bionic main restricted universe multiverse"           >/etc/apt/sources.list && \
-	echo "deb http://security.ubuntu.com/ubuntu bionic-security main restricted universe multiverse" >>/etc/apt/sources.list && \
-	echo "deb http://archive.ubuntu.com/ubuntu/ bionic-updates main restricted universe multiverse"  >>/etc/apt/sources.list && \
+	echo "deb http://archive.ubuntu.com/ubuntu/ focal main restricted universe multiverse"           >/etc/apt/sources.list && \
+	echo "deb http://security.ubuntu.com/ubuntu focal-security main restricted universe multiverse" >>/etc/apt/sources.list && \
+	echo "deb http://archive.ubuntu.com/ubuntu/ focal-updates main restricted universe multiverse"  >>/etc/apt/sources.list && \
 	apt-get update && \
 	apt-get install -y --no-install-recommends \
 		bind9-host \
@@ -67,6 +67,7 @@ RUN \
 		ed \
 		gpg \
 		gpg-agent \
+		haproxy \
 		inotify-tools \
 		iproute2 \
 		libvirt0 \
@@ -76,10 +77,6 @@ RUN \
 		runit \
 		wget \
 		&& \
-	echo "deb http://ppa.launchpad.net/vbernat/haproxy-2.2/ubuntu bionic main"  >>/etc/apt/sources.list.d/haproxy.list && \
-	http_proxy='' apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys CFFB779AADC995E4F350A060505D97A41C61B9CD && \
-	apt-get update && \
-	apt-get install -y --no-install-recommends haproxy && \
 	apt-get clean && \
 	rm -rf /var/lib/apt/lists && \
 	rm -vf /etc/ssh/ssh_host_*
