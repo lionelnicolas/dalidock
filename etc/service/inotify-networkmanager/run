@@ -26,7 +26,7 @@ fi
 echo "generated ${resolvconf_file}"
 
 # create /run/NetworkManager directory to monitor it
-while [ "$(inotifywait --quiet --recursive --event MOVED_TO --format '%f' /run/NetworkManager)" != "resolv.conf" ]; do
+while [ "$(inotifywait --quiet --recursive --exclude '/run/NetworkManager/(system-connections|devices|no-stub-resolv.conf)' --event MOVED_TO --format '%f' /run/NetworkManager)" != "resolv.conf" ]; do
 	# moved file is not resolv.conf, stay in loop
 	continue
 done
