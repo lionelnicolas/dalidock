@@ -83,7 +83,7 @@ RUN \
 
 # install tini
 RUN \
-	TINI_VERSION=v0.18.0 && \
+	TINI_VERSION=v0.19.0 && \
 	http_proxy='' gpg --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys 0527A9B7 && \
 	wget -O/usr/bin/tini     "https://github.com/krallin/tini/releases/download/${TINI_VERSION}/tini" && \
 	wget -O/usr/bin/tini.asc "https://github.com/krallin/tini/releases/download/${TINI_VERSION}/tini.asc" && \
