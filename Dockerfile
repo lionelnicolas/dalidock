@@ -1,4 +1,4 @@
-FROM ubuntu:focal-20210713 as base
+FROM ubuntu:noble-20251013 AS base
 
 # environment variables
 ENV \
@@ -9,9 +9,10 @@ ENV \
 
 # install packages
 RUN \
-	echo "deb http://archive.ubuntu.com/ubuntu/ focal main restricted universe multiverse"           >/etc/apt/sources.list && \
-	echo "deb http://security.ubuntu.com/ubuntu focal-security main restricted universe multiverse" >>/etc/apt/sources.list && \
-	echo "deb http://archive.ubuntu.com/ubuntu/ focal-updates main restricted universe multiverse"  >>/etc/apt/sources.list && \
+	echo "deb http://archive.ubuntu.com/ubuntu/ noble main restricted universe multiverse"           >/etc/apt/sources.list && \
+	echo "deb http://security.ubuntu.com/ubuntu noble-security main restricted universe multiverse" >>/etc/apt/sources.list && \
+	echo "deb http://archive.ubuntu.com/ubuntu/ noble-updates main restricted universe multiverse"  >>/etc/apt/sources.list && \
+	rm -vf /etc/apt/sources.list.d/ubuntu.sources && \
 	apt-get update && \
 	apt-get install -y --no-install-recommends \
 		bind9-host \
@@ -30,13 +31,13 @@ RUN \
 		python3 \
 		python3-docker \
 		python3-libvirt \
-		python3-distutils \
 		runit \
 		wget \
 		&& \
 	apt-get clean && \
 	rm -rf /var/lib/apt/lists && \
-	rm -vf /etc/ssh/ssh_host_*
+	rm -vf /etc/ssh/ssh_host_* && \
+	rm -vf /etc/service
 
 # install tini
 RUN \
