@@ -486,7 +486,7 @@ class LibvirtEventsHandler:
 class DockerClient:
     def __init__(self, url="unix:///var/run/docker.sock"):
         self.url = url
-        self.conn = docker.Client(base_url=self.url)
+        self.conn = docker.client.DockerClient(base_url=self.url)
         self.cache = dict()
 
         self.showInformations()
@@ -506,7 +506,7 @@ class DockerClient:
             return self.cache[containerid]
 
         try:
-            data = self.conn.inspect_container(containerid)
+            data = self.conn.containers.get(containerid).attrs
         except docker.errors.NotFound:
             error("Container '%s' does not exists" % (containerid))
             data = False
@@ -619,8 +619,8 @@ class DockerEventsHandler:
         myid = False
         myip = get_own_ip_address()
 
-        for container in self.docker.conn.containers():
-            data = self.docker.getContainerData(container["Id"])
+        for container in self.docker.conn.containers.list():
+            data = self.docker.getContainerData(container.id)
             ipaddress = self.docker.getIPAddress(data)
             hostname = self.docker.getHostname(data)
 
@@ -630,7 +630,7 @@ class DockerEventsHandler:
             if hostname != socket.gethostname():
                 continue
 
-            myid = container["Id"]
+            myid = container.id
 
         if not myid:
             fatal("failed to get dalidock container ID (this should not happen, this is a bug)")
@@ -643,8 +643,8 @@ class DockerEventsHandler:
         myid = False
         myip = get_own_ip_address()
 
-        for container in self.docker.conn.containers():
-            data = self.docker.getContainerData(container["Id"])
+        for container in self.docker.conn.containers.list():
+            data = self.docker.getContainerData(container.id)
             ipaddress = self.docker.getIPAddress(data)
             hostname = self.docker.getHostname(data)
 
@@ -654,7 +654,7 @@ class DockerEventsHandler:
             if hostname != socket.gethostname():
                 continue
 
-            myid = container["Id"]
+            myid = container.id
 
         if not myid:
             fatal("failed to get dalidock container ID (this should not happen, this is a bug)")
@@ -664,8 +664,8 @@ class DockerEventsHandler:
         self.handleContainerSafe(myid, "start")
 
     def loadAllContainers(self):
-        for container in self.docker.conn.containers():
-            self.handleContainerSafe(container["Id"], "start")
+        for container in self.docker.conn.containers.list():
+            self.handleContainerSafe(container.id, "start")
 
     def processEvt(self, evt):
         evt = json.loads(evt)
